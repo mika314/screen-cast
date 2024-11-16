@@ -1,8 +1,8 @@
 const canvas = document.getElementById('videoCanvas');
 const ctx = canvas.getContext('2d');
 
-console.log("connecting to wss://mika.global/ws/");
-const ws = new WebSocket('wss://mika.global/ws/');
+console.log("connecting to ws:/localhost:8090/");
+const ws = new WebSocket('ws://localhost:8090/');
 ws.binaryType = 'arraybuffer';
 
 let decoder = null;
