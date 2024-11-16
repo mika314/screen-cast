@@ -1,6 +1,7 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/extensions/XShm.h>
+#include <X11/extensions/Xfixes.h>
 #include <log/log.hpp>
 #include <sys/ipc.h>
 #include <sys/shm.h>
@@ -129,7 +130,13 @@ private:
         return;
       }
       Window root = DefaultRootWindow(display);
-      auto target = std::chrono::milliseconds(1000 / 60);
+      // Initialize XFixes
+      int event_base, error_base;
+      if (!XFixesQueryExtension(display, &event_base, &error_base))
+      {
+        LOG("XFixes extension not available");
+        return;
+      }
 
       if (!XShmQueryExtension(display))
       {
@@ -155,6 +162,7 @@ private:
       XShmAttach(display, &shminfo);
       LOG("attached");
 
+      auto target = std::chrono::milliseconds(1000 / 60);
       while (true)
       {
         const auto t1 = std::chrono::steady_clock::now();
@@ -164,6 +172,57 @@ private:
           LOG("Failed to get image");
           break;
         }
+        XFixesCursorImage *cursorImage = XFixesGetCursorImage(display);
+
+        if (cursorImage)
+        {
+          // Calculate cursor position relative to the captured image
+          int cursorX = cursorImage->x - self->x_;
+          int cursorY = cursorImage->y - self->y_;
+
+          // Overlay the cursor image onto the captured image
+          for (int j = 0; j < cursorImage->height; ++j)
+          {
+            int imgY = cursorY + j;
+            if (imgY < 0 || imgY >= self->height_)
+              continue;
+
+            for (int i = 0; i < cursorImage->width; ++i)
+            {
+              int imgX = cursorX + i;
+              if (imgX < 0 || imgX >= self->width_)
+                continue;
+
+              // Get the cursor pixel
+              uint32_t cursorPixel = cursorImage->pixels[j * cursorImage->width + i];
+
+              // Get the image pixel
+              uint32_t *imagePixel = (uint32_t *)(image->data + imgY * image->bytes_per_line + imgX * 4);
+
+              // Blend the cursor pixel over the image pixel
+              // Extract alpha, red, green, blue components
+              uint8_t alpha = (cursorPixel >> 24) & 0xFF;
+              uint8_t cr = (cursorPixel >> 16) & 0xFF;
+              uint8_t cg = (cursorPixel >> 8) & 0xFF;
+              uint8_t cb = cursorPixel & 0xFF;
+
+              uint8_t ir = (*imagePixel >> 16) & 0xFF;
+              uint8_t ig = (*imagePixel >> 8) & 0xFF;
+              uint8_t ib = *imagePixel & 0xFF;
+
+              // Blend the colors
+              uint8_t nr = (cr * alpha + ir * (255 - alpha)) / 255;
+              uint8_t ng = (cg * alpha + ig * (255 - alpha)) / 255;
+              uint8_t nb = (cb * alpha + ib * (255 - alpha)) / 255;
+
+              // Set the new pixel value
+              *imagePixel = (nr << 16) | (ng << 8) | nb;
+            }
+          }
+          // Free the cursor image
+          XFree(cursorImage);
+        }
+
         const auto t2 = std::chrono::steady_clock::now();
 
         // Prepare source frame data

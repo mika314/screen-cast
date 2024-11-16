@@ -1,1 +1,1 @@
-ldflags="-lX11 -lXi -lXext"
+ldflags="-lX11 -lXi -lXext -lXfixes"
