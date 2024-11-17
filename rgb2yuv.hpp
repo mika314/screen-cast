@@ -22,7 +22,7 @@ private:
     std::thread thread;
     int startRow;
     int endRow;
-    bool ready;
+    bool ready = false;
   };
 
   std::vector<ThreadData> threadsData;
