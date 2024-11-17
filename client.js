@@ -3,9 +3,7 @@ const startButton = document.getElementById('startButton');
 const ctx = canvas.getContext('2d');
 
 
-// Start fullscreen and WebSocket connection on button click
 startButton.addEventListener('click', async () => {
-    // Request fullscreen
     if (document.fullscreenEnabled) {
         try {
             await document.body.requestFullscreen();
@@ -19,7 +17,6 @@ startButton.addEventListener('click', async () => {
         return;
     }
 
-    // Hide the button after entering fullscreen
     startButton.style.display = 'none';
 
     console.log("connecting to ws:/localhost:8090/");
@@ -58,7 +55,6 @@ startButton.addEventListener('click', async () => {
 
                 decoder = new VideoDecoder({
                     output: frame => {
-                        // Draw decoded frame on the canvas
                         ctx.drawImage(frame, 0, 0, canvas.width, canvas.height);
                         frame.close();
                     },

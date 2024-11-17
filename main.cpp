@@ -1,47 +1,32 @@
 #include "session.hpp"
-#include <chrono>
-#include <fcntl.h>
-#include <fstream>
-#include <iostream>
 #include <log/log.hpp>
-#include <thread>
-#include <unistd.h>
 
-// Forward declaration
-void do_accept(tcp::acceptor &acceptor);
-
-// Start accepting connections
-void do_accept(tcp::acceptor &acceptor)
+void doAccept(tcp::acceptor &acceptor)
 {
   acceptor.async_accept([&](boost::system::error_code ec, tcp::socket socket) {
-    if (!ec)
-    {
-      std::make_shared<Session>(std::move(socket))->run();
-    }
-    else
+    if (ec)
     {
       LOG("Accept failed:", ec.message());
+      doAccept(acceptor);
+      return;
     }
-    do_accept(acceptor);
+    std::make_shared<Session>(std::move(socket))->run();
+    doAccept(acceptor);
   });
 }
 
-int main()
+auto main() -> int
 {
   try
   {
-    boost::asio::io_context ioc{1};
-    tcp::endpoint endpoint{tcp::v4(), 8090};
-
-    tcp::acceptor acceptor{ioc, endpoint};
-    do_accept(acceptor);
-
+    auto ioc = boost::asio::io_context{1};
+    auto endpoint = tcp::endpoint{tcp::v4(), 8090};
+    auto acceptor = tcp::acceptor{ioc, endpoint};
+    doAccept(acceptor);
     ioc.run();
   }
   catch (const std::exception &e)
   {
     LOG("Error:", e.what());
   }
-
-  return 0;
 }

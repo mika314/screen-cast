@@ -49,11 +49,9 @@ auto WebSocketSession::initEncoder() -> void
   codecContext->max_b_frames = 0; // No B-frames
   codecContext->pix_fmt = AV_PIX_FMT_YUV420P;
 
-  // Low-latency settings
   codecContext->flags |= AV_CODEC_FLAG_LOW_DELAY;
   codecContext->thread_count = 0;
 
-  // H.264 specific settings
   av_opt_set(codecContext->priv_data, "preset", "ultrafast", 0);
   av_opt_set(codecContext->priv_data, "profile", "baseline", 0);
   av_opt_set(codecContext->priv_data, "tune", "zerolatency", 0);
@@ -64,7 +62,6 @@ auto WebSocketSession::initEncoder() -> void
     exit(1);
   }
 
-  // Initialize frame
   frame = av_frame_alloc();
   if (!frame)
   {
@@ -84,7 +81,6 @@ auto WebSocketSession::initEncoder() -> void
 
 auto WebSocketSession::startSendingFrames() -> void
 {
-  // Start a new thread for frame capturing and sending
   std::thread([self = shared_from_this()]() { self->threadFunc(); }).detach();
 }
 
@@ -97,7 +93,6 @@ auto WebSocketSession::threadFunc() -> void
     return;
   }
   auto root = DefaultRootWindow(display);
-  // Initialize XFixes
   int eventBase, errorBase;
   if (!XFixesQueryExtension(display, &eventBase, &errorBase))
   {
@@ -142,11 +137,9 @@ auto WebSocketSession::threadFunc() -> void
     const auto cursorImage = XFixesGetCursorImage(display);
     if (cursorImage)
     {
-      // Calculate cursor position relative to the captured image, adjusting for hotspot
       const auto cursorX = cursorImage->x - cursorImage->xhot - x;
       const auto cursorY = cursorImage->y - cursorImage->yhot - y;
 
-      // Overlay the cursor image onto the captured image
       for (auto j = 0; j < cursorImage->height; ++j)
       {
         const auto imgY = cursorY + j;
@@ -159,13 +152,8 @@ auto WebSocketSession::threadFunc() -> void
           if (imgX < 0 || imgX >= width)
             continue;
 
-          // Get the cursor pixel
           const auto cursorPixel = cursorImage->pixels[j * cursorImage->width + i];
-
-          // Extract alpha, red, green, blue components
           const auto alpha = (cursorPixel >> 24) & 0xff;
-
-          // Skip fully transparent pixels to optimize
           if (alpha == 0)
             continue;
 
@@ -173,7 +161,6 @@ auto WebSocketSession::threadFunc() -> void
           const auto cg = static_cast<uint8_t>((cursorPixel >> 8) & 0xff);
           const auto cb = static_cast<uint8_t>(cursorPixel & 0xff);
 
-          // Get the image pixel
           const auto imagePixel =
             reinterpret_cast<uint32_t *>(image->data + imgY * image->bytes_per_line + imgX * 4);
 
@@ -181,36 +168,29 @@ auto WebSocketSession::threadFunc() -> void
           const auto ig = static_cast<uint8_t>((*imagePixel >> 8) & 0xff);
           const auto ib = static_cast<uint8_t>(*imagePixel & 0xff);
 
-          // Blend the colors using alpha blending
           const auto nr = static_cast<uint8_t>((cr * alpha + ir * (255 - alpha)) / 255);
           const auto ng = static_cast<uint8_t>((cg * alpha + ig * (255 - alpha)) / 255);
           const auto nb = static_cast<uint8_t>((cb * alpha + ib * (255 - alpha)) / 255);
 
-          // Set the new pixel value
           *imagePixel = (nr << 16U) | (ng << 8U) | nb;
         }
       }
-      // Free the cursor image
       XFree(cursorImage);
     }
 
     const auto t2 = std::chrono::steady_clock::now();
 
-    // Prepare source and destination pointers
     const auto src = reinterpret_cast<const uint8_t *>(image->data);
     const auto srcLineSize = image->bytes_per_line;
 
     uint8_t *dst[3] = {frame->data[0], frame->data[1], frame->data[2]};
     int dstStride[3] = {frame->linesize[0], frame->linesize[1], frame->linesize[2]};
-
-    // Perform conversion
     rgb2yuv.convert(src, srcLineSize, dst, dstStride);
 
     const auto t3 = std::chrono::steady_clock::now();
 
     frame->pts = frameIndex++;
 
-    // Encode frame and send
     if (encodeAndSendFrame() < 0)
     {
       LOG("Error encoding and sending frame");
@@ -269,7 +249,6 @@ auto WebSocketSession::encodeAndSendFrame() -> int
       return ret;
     }
 
-    // Send packet over WebSocket
     try
     {
       ws.binary(true);

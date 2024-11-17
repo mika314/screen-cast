@@ -32,7 +32,6 @@ private:
   AVFrame *frame = nullptr;
   int frameIndex = 0;
 
-  // Screen capture parameters
   const int width = 1920;
   const int height = 1080;
   const int x = 0;

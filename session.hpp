@@ -6,7 +6,6 @@
 using tcp = boost::asio::ip::tcp;
 namespace http = boost::beast::http;
 
-// Session class to handle both HTTP and WebSocket sessions
 class Session : public std::enable_shared_from_this<Session>
 {
 public:

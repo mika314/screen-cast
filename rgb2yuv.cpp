@@ -40,7 +40,6 @@ auto Rgb2Yuv::convert(const uint8_t *aSrc, int aSrcLineSize, uint8_t *const dst[
   }
   cv.notify_all();
 
-  // Wait for all threads to finish
   auto lock = std::unique_lock<std::mutex>{mutex};
   cv.wait(lock, [this] {
     return std::all_of(
@@ -63,7 +62,6 @@ auto Rgb2Yuv::worker(int threadId) -> void
 
     lock.unlock();
 
-    // Perform conversion on assigned rows
     for (auto y = startRow; y < endRow; ++y)
     {
       const auto srcLine = src + y * srcLineSize;
@@ -75,11 +73,9 @@ auto Rgb2Yuv::worker(int threadId) -> void
         const auto g = srcLine[x * 4 + 1];
         const auto b = srcLine[x * 4 + 0];
 
-        // Convert to Y
         dstYLine[x] = ((66 * r + 129 * g + 25 * b + 128) >> 8) + 16;
       }
 
-      // For U and V (every other row)
       if (y % 2 == 0)
       {
         auto dstULine = dstU + (y / 2) * dstStrideU;
@@ -92,7 +88,6 @@ auto Rgb2Yuv::worker(int threadId) -> void
           const auto idx2 = (y + 1 < height) ? (x * 4 + srcLineSize) : idx0;
           const auto idx3 = (y + 1 < height) ? ((x + 1) * 4 + srcLineSize) : idx1;
 
-          // Average RGB values over 2x2 block
           const auto r =
             (srcLine[idx0 + 2] + srcLine[idx1 + 2] + srcLine[idx2 + 2] + srcLine[idx3 + 2]) / 4;
           const auto g =
@@ -100,7 +95,6 @@ auto Rgb2Yuv::worker(int threadId) -> void
           const auto b =
             (srcLine[idx0 + 0] + srcLine[idx1 + 0] + srcLine[idx2 + 0] + srcLine[idx3 + 0]) / 4;
 
-          // Convert to U and V
           const auto uValue = static_cast<uint8_t>(((-38 * r - 74 * g + 112 * b + 128) >> 8) + 128);
           const auto vValue = static_cast<uint8_t>(((112 * r - 94 * g - 18 * b + 128) >> 8) + 128);
 

@@ -84,7 +84,6 @@ void Session::handleHttpRequest()
   }();
 
   LOG("Build the response");
-  // Use a shared_ptr to extend the lifetime of res
   auto res = std::make_shared<http::response<http::string_body>>(http::status::ok, req.version());
   res->set(http::field::server, BOOST_BEAST_VERSION_STRING);
   res->set(http::field::content_type, contentType);
