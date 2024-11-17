@@ -143,7 +143,7 @@ private:
 
       auto rgb2yuv = Rgb2Yuv{16, self->width_, self->height_};
 
-      auto target = std::chrono::milliseconds(1000 / 60);
+      auto target = std::chrono::steady_clock::now() + std::chrono::milliseconds(1000 / 60);
       while (true)
       {
         const auto t1 = std::chrono::steady_clock::now();
@@ -234,17 +234,16 @@ private:
         }
         const auto t4 = std::chrono::steady_clock::now();
 
-        const auto diff = std::chrono::steady_clock::now() - t1;
-
-        if (diff > target)
+        if (t4 > target)
         {
-          LOG("drop", diff - target, "grab", t2 - t1, "color conv", t3 - t2, "encode", t4 - t3);
-          target = std::chrono::milliseconds(1000 / 60);
+          LOG("drop", t4 - target, "grab", t2 - t1, "color conv", t3 - t2, "encode", t4 - t3);
+          target = t4 + std::chrono::milliseconds(1000 / 60);
         }
         else
         {
           // LOG("GOOD", target - diff, "grab", t2 - t1, "color conv", t3 - t2, "encode", t4 - t3);
-          std::this_thread::sleep_for(target - diff);
+          std::this_thread::sleep_for(target - t4);
+          target += std::chrono::milliseconds(1000 / 60);
         }
       }
 
