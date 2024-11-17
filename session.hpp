@@ -11,16 +11,16 @@ class Session : public std::enable_shared_from_this<Session>
 {
 public:
   Session(tcp::socket socket);
-  void run();
+  auto run() -> void;
 
 private:
-  tcp::socket socket_;
-  boost::asio::strand<boost::asio::any_io_executor> strand_;
-  boost::beast::flat_buffer buffer_;
-  http::request<http::string_body> req_;
+  tcp::socket socket;
+  boost::asio::strand<boost::asio::any_io_executor> strand;
+  boost::beast::flat_buffer buffer;
+  http::request<http::string_body> req;
 
-  void do_read();
-  void handle_request();
-  void handle_http_request();
-  void send_not_found_response(const std::string &target);
+  auto doRead() -> void;
+  auto handleRequest() -> void;
+  auto handleHttpRequest() -> void;
+  auto sendNotFoundResponse(const std::string &target) -> void;
 };
