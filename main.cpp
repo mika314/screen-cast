@@ -60,7 +60,7 @@ private:
       exit(1);
     }
 
-    codec_context_->bit_rate = 6'000'000;
+    codec_context_->bit_rate = 4'500'000;
     codec_context_->width = width_;
     codec_context_->height = height_;
     codec_context_->time_base = {1, 60};
@@ -71,7 +71,7 @@ private:
 
     // Low-latency settings
     codec_context_->flags |= AV_CODEC_FLAG_LOW_DELAY;
-    codec_context_->thread_count = 0; // Enable multi-threading
+    codec_context_->thread_count = 1;
 
     // H.264 specific settings
     av_opt_set(codec_context_->priv_data, "preset", "ultrafast", 0);
@@ -238,12 +238,12 @@ private:
 
         if (t4 > target)
         {
-          LOG("drop", t4 - target, "grab", t2 - t1, "color conv", t3 - t2, "encode", t4 - t3);
+          LOG(self, "drop", t4 - target, "grab", t2 - t1, "color conv", t3 - t2, "encode", t4 - t3);
           target = t4 + std::chrono::milliseconds(1000 / 60);
         }
         else
         {
-          // LOG("GOOD", target - diff, "grab", t2 - t1, "color conv", t3 - t2, "encode", t4 - t3);
+          // LOG(self, "GOOD", target - diff, "grab", t2 - t1, "color conv", t3 - t2, "encode", t4 - t3);
           std::this_thread::sleep_for(target - t4);
           target += std::chrono::milliseconds(1000 / 60);
         }
