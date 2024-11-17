@@ -1,23 +1,23 @@
+#include "rgb2yuv.hpp"
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/extensions/XShm.h>
 #include <X11/extensions/Xfixes.h>
+#include <boost/asio.hpp>
+#include <boost/beast.hpp>
+#include <chrono>
+#include <fcntl.h>
+#include <iostream>
 #include <log/log.hpp>
 #include <sys/ipc.h>
 #include <sys/shm.h>
-
+#include <thread>
+#include <unistd.h>
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavutil/imgutils.h>
 #include <libavutil/opt.h>
-#include <libswscale/swscale.h>
 }
-
-#include <boost/asio.hpp>
-#include <boost/beast.hpp>
-#include <chrono>
-#include <iostream>
-#include <thread>
 
 using tcp = boost::asio::ip::tcp;
 namespace websocket = boost::beast::websocket;
@@ -58,7 +58,7 @@ private:
       exit(1);
     }
 
-    codec_context_->bit_rate = 3'000'000;
+    codec_context_->bit_rate = 6'000'000;
     codec_context_->width = width_;
     codec_context_->height = height_;
     codec_context_->time_base = {1, 60};
@@ -97,24 +97,6 @@ private:
     if (ret < 0)
     {
       LOG("Could not allocate the video frame data");
-      exit(1);
-    }
-
-    // Initialize SWS context for color space conversion
-    sws_context_ = sws_getContext(width_,
-                                  height_,
-                                  AV_PIX_FMT_RGB32,
-                                  width_,
-                                  height_,
-                                  AV_PIX_FMT_YUV420P,
-                                  SWS_FAST_BILINEAR,
-                                  NULL,
-                                  NULL,
-                                  NULL);
-
-    if (!sws_context_)
-    {
-      LOG("Could not initialize the conversion context");
       exit(1);
     }
   }
@@ -157,10 +139,9 @@ private:
       shminfo.shmaddr = image->data = (char *)shmat(shminfo.shmid, NULL, 0);
       shminfo.readOnly = False;
 
-      LOG("attaching");
-
       XShmAttach(display, &shminfo);
-      LOG("attached");
+
+      auto rgb2yuv = Rgb2Yuv{16, self->width_, self->height_};
 
       auto target = std::chrono::milliseconds(1000 / 60);
       while (true)
@@ -229,18 +210,17 @@ private:
 
         const auto t2 = std::chrono::steady_clock::now();
 
-        // Prepare source frame data
-        uint8_t *src_data[4] = {(uint8_t *)image->data, NULL, NULL, NULL};
-        int src_linesize[4] = {image->bytes_per_line, 0, 0, 0};
+        // Prepare source and destination pointers
+        uint8_t *src = (uint8_t *)image->data;
+        int srcLineSize = image->bytes_per_line;
 
-        // Convert RGB to YUV420P
-        sws_scale(self->sws_context_,
-                  src_data,
-                  src_linesize,
-                  0,
-                  self->height_,
-                  self->frame_->data,
-                  self->frame_->linesize);
+        uint8_t *dst[3] = {self->frame_->data[0], self->frame_->data[1], self->frame_->data[2]};
+        int dstStride[3] = {
+          self->frame_->linesize[0], self->frame_->linesize[1], self->frame_->linesize[2]};
+
+        // Perform conversion
+        rgb2yuv.convert(src, srcLineSize, dst, dstStride);
+
         const auto t3 = std::chrono::steady_clock::now();
 
         self->frame_->pts = self->frame_index_++;
@@ -263,7 +243,7 @@ private:
         }
         else
         {
-          LOG("GOOD", target - diff, "grab", t2 - t1, "color conv", t3 - t2, "encode", t4 - t3);
+          // LOG("GOOD", target - diff, "grab", t2 - t1, "color conv", t3 - t2, "encode", t4 - t3);
           std::this_thread::sleep_for(target - diff);
         }
       }
@@ -331,7 +311,6 @@ private:
   AVCodec *codec_ = nullptr;
   AVCodecContext *codec_context_ = nullptr;
   AVFrame *frame_ = nullptr;
-  struct SwsContext *sws_context_ = nullptr;
   int frame_index_ = 0;
 
   // Screen capture parameters
