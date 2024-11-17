@@ -15,3 +15,7 @@ Then, start the screen-cast server:
 ```
 
 Open in the Oculus Quest browser: `http://localhost:8090`
+
+Note: the code base uses ffmpeg. I am not sure if it is compatible with MIT; I am not a lawyer.
+
+Note 2: more detailed instructions will come soon™.
