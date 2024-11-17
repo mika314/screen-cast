@@ -172,13 +172,13 @@ private:
           LOG("Failed to get image");
           break;
         }
-        XFixesCursorImage *cursorImage = XFixesGetCursorImage(display);
 
+        XFixesCursorImage *cursorImage = XFixesGetCursorImage(display);
         if (cursorImage)
         {
-          // Calculate cursor position relative to the captured image
-          int cursorX = cursorImage->x - self->x_;
-          int cursorY = cursorImage->y - self->y_;
+          // Calculate cursor position relative to the captured image, adjusting for hotspot
+          int cursorX = cursorImage->x - cursorImage->xhot - self->x_;
+          int cursorY = cursorImage->y - cursorImage->yhot - self->y_;
 
           // Overlay the cursor image onto the captured image
           for (int j = 0; j < cursorImage->height; ++j)
@@ -196,21 +196,25 @@ private:
               // Get the cursor pixel
               uint32_t cursorPixel = cursorImage->pixels[j * cursorImage->width + i];
 
-              // Get the image pixel
-              uint32_t *imagePixel = (uint32_t *)(image->data + imgY * image->bytes_per_line + imgX * 4);
-
-              // Blend the cursor pixel over the image pixel
               // Extract alpha, red, green, blue components
               uint8_t alpha = (cursorPixel >> 24) & 0xFF;
+
+              // Skip fully transparent pixels to optimize
+              if (alpha == 0)
+                continue;
+
               uint8_t cr = (cursorPixel >> 16) & 0xFF;
               uint8_t cg = (cursorPixel >> 8) & 0xFF;
               uint8_t cb = cursorPixel & 0xFF;
+
+              // Get the image pixel
+              uint32_t *imagePixel = (uint32_t *)(image->data + imgY * image->bytes_per_line + imgX * 4);
 
               uint8_t ir = (*imagePixel >> 16) & 0xFF;
               uint8_t ig = (*imagePixel >> 8) & 0xFF;
               uint8_t ib = *imagePixel & 0xFF;
 
-              // Blend the colors
+              // Blend the colors using alpha blending
               uint8_t nr = (cr * alpha + ir * (255 - alpha)) / 255;
               uint8_t ng = (cg * alpha + ig * (255 - alpha)) / 255;
               uint8_t nb = (cb * alpha + ib * (255 - alpha)) / 255;
