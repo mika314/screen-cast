@@ -9,7 +9,7 @@ class Rgb2Yuv
 public:
   Rgb2Yuv(int nThreads, int w, int h);
   ~Rgb2Yuv();
-  void convert(uint8_t *src, int srcLineSize, uint8_t *const dst[], const int dstStride[]);
+  void convert(const uint8_t *src, int srcLineSize, uint8_t *const dst[], const int dstStride[]);
 
 private:
   void worker(int threadId);
@@ -27,7 +27,7 @@ private:
 
   std::vector<ThreadData> threadsData;
 
-  uint8_t *src;
+  const uint8_t *src;
   int srcLineSize;
   uint8_t *dstY;
   uint8_t *dstU;

@@ -18,22 +18,23 @@ class WebSocketSession : public std::enable_shared_from_this<WebSocketSession>
 {
 public:
   WebSocketSession(tcp::socket socket);
-  void run(http::request<http::string_body> req);
+  auto run(http::request<http::string_body> req) -> void;
 
 private:
-  void init_encoder();
-  void start_sending_frames();
-  int encode_and_send_frame();
+  auto initEncoder() -> void;
+  auto startSendingFrames() -> void;
+  auto encodeAndSendFrame() -> int;
+  auto threadFunc() -> void;
 
-  websocket::stream<tcp::socket> ws_;
-  AVCodec *codec_ = nullptr;
-  AVCodecContext *codec_context_ = nullptr;
-  AVFrame *frame_ = nullptr;
-  int frame_index_ = 0;
+  websocket::stream<tcp::socket> ws;
+  AVCodec *codec = nullptr;
+  AVCodecContext *codecContext = nullptr;
+  AVFrame *frame = nullptr;
+  int frameIndex = 0;
 
   // Screen capture parameters
-  const int width_ = 1920;
-  const int height_ = 1080;
-  const int x_ = 0;
-  const int y_ = 0;
+  const int width = 1920;
+  const int height = 1080;
+  const int x = 0;
+  const int y = 0;
 };

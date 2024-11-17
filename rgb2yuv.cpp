@@ -28,7 +28,7 @@ Rgb2Yuv::~Rgb2Yuv()
   }
 }
 
-void Rgb2Yuv::convert(uint8_t *aSrc, int aSrcLineSize, uint8_t *const dst[], const int dstStride[])
+void Rgb2Yuv::convert(const uint8_t *aSrc, int aSrcLineSize, uint8_t *const dst[], const int dstStride[])
 {
   {
     std::unique_lock<std::mutex> lock(mutex);
@@ -71,7 +71,7 @@ void Rgb2Yuv::worker(int threadId)
     // Perform conversion on assigned rows
     for (int y = startRow; y < endRow; ++y)
     {
-      uint8_t *srcLine = src + y * srcLineSize;
+      const uint8_t *srcLine = src + y * srcLineSize;
       uint8_t *dstYLine = dstY + y * dstStrideY;
 
       for (int x = 0; x < width; ++x)
