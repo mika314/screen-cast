@@ -21,7 +21,7 @@ Screen Cast allows you to stream your computer's screen directly to your Oculus 
 1. **Install Dependencies**
    ```bash
    sudo apt-get update
-   sudo apt-get install -y clang git libavcodec-dev libavformat-dev libavutil-dev libswresample-dev libx11-dev libxext-dev libxfixes-dev pkg-config
+   sudo apt-get install -y clang git libavcodec-dev libavformat-dev libavutil-dev libswresample-dev libx11-dev libxext-dev libxfixes-dev pkg-config libboost1.74-dev
    ```
 
 2. **Install and Build `coddle` (Build Tool)**
