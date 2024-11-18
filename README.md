@@ -2,7 +2,10 @@
 
 Screen Cast allows you to stream your computer's screen directly to your Oculus Quest via a browser. The tool uses FFmpeg for screen capture and H.264 encoding, and streams it over a WebSocket connection.
 
----
+## **Screen Cast Demo**
+
+[![Screen Cast Demo](https://img.youtube.com/vi/sL3Lxmemyn0/0.jpg)](https://youtu.be/sL3Lxmemyn0)
+
 
 ## **Getting Started**
 
