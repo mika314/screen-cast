@@ -91,7 +91,7 @@ void Session::handleHttpRequest()
   res->body() = content;
   res->prepare_payload();
 
-  LOG("Send the response", content);
+  LOG("Send the response");
   auto self = shared_from_this();
   http::async_write(
     socket,

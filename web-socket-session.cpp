@@ -4,12 +4,39 @@
 #include <X11/Xutil.h>
 #include <X11/extensions/XShm.h>
 #include <X11/extensions/Xfixes.h>
+#include <pulse/error.h>
+#include <pulse/simple.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
 
 WebSocketSession::WebSocketSession(tcp::socket socket) : ws(std::move(socket))
 {
   initEncoder();
+  initAudio();
+}
+
+WebSocketSession::~WebSocketSession()
+{
+  LOG("Destructor initiated");
+  isRunning = false;
+
+  if (paStream)
+  {
+    pa_simple_free(paStream);
+    paStream = nullptr;
+  }
+
+  if (codecContext)
+  {
+    avcodec_free_context(&codecContext);
+    codecContext = nullptr;
+  }
+  if (frame)
+  {
+    av_frame_free(&frame);
+    frame = nullptr;
+  }
+  LOG("Destructor finished");
 }
 
 auto WebSocketSession::run(http::request<http::string_body> req) -> void
@@ -25,7 +52,7 @@ auto WebSocketSession::initEncoder() -> void
 {
   LOG("Initialize FFmpeg encoder");
 
-  // codec_ = avcodec_find_encoder_by_name("h264_nvenc");
+  // codec = avcodec_find_encoder_by_name("h264_nvenc");
   codec = avcodec_find_encoder(AV_CODEC_ID_H264);
   if (!codec)
   {
@@ -79,12 +106,58 @@ auto WebSocketSession::initEncoder() -> void
   }
 }
 
-auto WebSocketSession::startSendingFrames() -> void
+void WebSocketSession::initAudio()
 {
-  std::thread([self = shared_from_this()]() { self->threadFunc(); }).detach();
+  LOG("Initialize PulseAudio for audio capture");
+
+  pa_sample_spec ss;
+  ss.format = PA_SAMPLE_S16LE; // 16-bit PCM
+  ss.rate = 48000;             // 48kHz sample rate
+  ss.channels = 2;             // Stereo
+
+  pa_buffer_attr buffer_attr;
+  buffer_attr.maxlength = (uint32_t)-1; // Default maximum buffer size
+  buffer_attr.tlength = (uint32_t)-1;   // Not used for recording
+  buffer_attr.prebuf = (uint32_t)-1;    // Not used for recording
+  buffer_attr.minreq = (uint32_t)-1;    // Default minimum request size
+  buffer_attr.fragsize = 960;           // 0.005 seconds of audio (960 bytes)
+
+  int error;
+  paStream = pa_simple_new(NULL,                     // Use default server
+                           "Screen Cast",            // Application name
+                           PA_STREAM_RECORD,         // Stream direction (recording)
+                           "@DEFAULT_SINK@.monitor", // Source to record from
+                           "record",                 // Stream description
+                           &ss,                      // Sample format specification
+                           NULL,                     // Default channel map
+                           &buffer_attr,             // Buffer attributes
+                           &error                    // Error code
+  );
+
+  // paStream = pa_simple_new(NULL,             // Use default server
+  //                          "Screen Cast",    // Application name
+  //                          PA_STREAM_RECORD, // Stream direction (recording)
+  //                          nullptr,          // Source to record from
+  //                          "record",         // Stream description
+  //                          &ss,              // Sample format specification
+  //                          NULL,             // Default channel map
+  //                          &buffer_attr,     // Buffer attributes
+  //                          &error            // Error code
+  // );
+  if (!paStream)
+  {
+    LOG("pa_simple_new() failed:", pa_strerror(error));
+    exit(1);
+  }
 }
 
-auto WebSocketSession::threadFunc() -> void
+auto WebSocketSession::startSendingFrames() -> void
+{
+  std::thread([self = shared_from_this()]() { self->videoThreadFunc(); }).detach();
+  std::thread([self = shared_from_this()]() { self->audioThreadFunc(); }).detach();
+}
+
+auto WebSocketSession::videoThreadFunc() -> void
 {
   const auto display = XOpenDisplay(nullptr);
   if (!display)
@@ -124,7 +197,7 @@ auto WebSocketSession::threadFunc() -> void
   auto rgb2yuv = Rgb2Yuv{16, width, height};
 
   auto target = std::chrono::steady_clock::now() + std::chrono::milliseconds(1000 / 60);
-  while (true)
+  while (isRunning)
   {
     const auto t1 = std::chrono::steady_clock::now();
     const auto s = XShmGetImage(display, root, image, x, y, AllPlanes);
@@ -201,12 +274,11 @@ auto WebSocketSession::threadFunc() -> void
 
     if (t4 > target)
     {
-      LOG("drop", t4 - target, "grab", t2 - t1, "color conv", t3 - t2, "encode", t4 - t3);
+      LOG("Frame delayed", t4 - target, "grab", t2 - t1, "color conv", t3 - t2, "encode", t4 - t3);
       target = t4 + std::chrono::milliseconds(1000 / 60);
     }
     else
     {
-      // LOG(self, "GOOD", target - diff, "grab", t2 - t1, "color conv", t3 - t2, "encode", t4 - t3);
       std::this_thread::sleep_for(target - t4);
       target += std::chrono::milliseconds(1000 / 60);
     }
@@ -216,6 +288,7 @@ auto WebSocketSession::threadFunc() -> void
   shmdt(shminfo.shmaddr);
   shmctl(shminfo.shmid, IPC_RMID, 0);
   XCloseDisplay(display);
+  LOG("Video thread ended");
 }
 
 auto WebSocketSession::encodeAndSendFrame() -> int
@@ -251,8 +324,14 @@ auto WebSocketSession::encodeAndSendFrame() -> int
 
     try
     {
+      // Prepend message type byte (0x01 for video)
+      std::vector<uint8_t> message;
+      message.push_back(0x01); // Video data identifier
+      message.insert(message.end(), pkt->data, pkt->data + pkt->size);
+
+      auto lock = std::unique_lock{avMutex};
       ws.binary(true);
-      ws.write(boost::asio::buffer(pkt->data, pkt->size));
+      ws.write(boost::asio::buffer(message));
     }
     catch (const std::exception &e)
     {
@@ -267,4 +346,46 @@ auto WebSocketSession::encodeAndSendFrame() -> int
 
   av_packet_free(&pkt);
   return 0;
+}
+
+auto WebSocketSession::audioThreadFunc() -> void
+{
+  const size_t bufferSize = 48000 * 2 * 2 / 50; // 0.02 seconds of audio
+  uint8_t buffer[bufferSize];
+
+  auto first = true;
+
+  while (isRunning)
+  {
+    int error;
+    if (pa_simple_read(paStream, buffer, sizeof(buffer), &error) < 0)
+    {
+      LOG("pa_simple_read() failed:", pa_strerror(error));
+      break;
+    }
+
+    if (first)
+    {
+      first = false;
+      LOG("first audio sample");
+    }
+
+    // Prepend message type byte (0x02 for audio)
+    std::vector<uint8_t> message;
+    message.push_back(0x02); // Audio data identifier
+    message.insert(message.end(), buffer, buffer + sizeof(buffer));
+
+    try
+    {
+      auto lock = std::unique_lock{avMutex};
+      ws.binary(true);
+      ws.write(boost::asio::buffer(message));
+    }
+    catch (const std::exception &e)
+    {
+      LOG("WebSocket write error (audio):", e.what());
+      break;
+    }
+  }
+  LOG("Audio thread ended");
 }

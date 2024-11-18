@@ -3,10 +3,12 @@
 
 Rgb2Yuv::Rgb2Yuv(int nThreads, int w, int h) : width(w), height(h), stop(false)
 {
-  for (int i = 0; i < nThreads; ++i)
-    threadsData.emplace_back(ThreadData{.thread = std::thread{&Rgb2Yuv::worker, this, i},
-                                        .startRow = i * height / nThreads,
-                                        .endRow = (i + 1) * height / nThreads});
+  for (auto i = 0; i < nThreads; ++i)
+    threadsData.emplace_back(
+      ThreadData{.startRow = i * height / nThreads, .endRow = (i + 1) * height / nThreads});
+
+  for (auto i = 0; i < nThreads; ++i)
+    threadsData[i].thread = std::thread{&Rgb2Yuv::worker, this, i};
 }
 
 Rgb2Yuv::~Rgb2Yuv()

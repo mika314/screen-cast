@@ -19,10 +19,10 @@ private:
 
   struct ThreadData
   {
-    std::thread thread;
     int startRow;
     int endRow;
     bool ready = false;
+    std::thread thread;
   };
 
   std::vector<ThreadData> threadsData;
