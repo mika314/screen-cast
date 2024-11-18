@@ -1,8 +1,9 @@
 #include "web-socket-session.hpp"
 #include "rgb2yuv.hpp"
+#include <GL/gl.h>
+#include <GL/glx.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
-#include <X11/extensions/XShm.h>
 #include <X11/extensions/Xfixes.h>
 #include <pulse/error.h>
 #include <pulse/simple.h>
@@ -165,48 +166,41 @@ auto WebSocketSession::videoThreadFunc() -> void
     LOG("Cannot open display");
     return;
   }
+
+  int displayHeight = DisplayHeight(display, 0);
+
   auto root = DefaultRootWindow(display);
-  int eventBase, errorBase;
-  if (!XFixesQueryExtension(display, &eventBase, &errorBase))
+
+  GLint att[] = {GLX_RGBA, GLX_DEPTH_SIZE, 24, GLX_DOUBLEBUFFER, None};
+  XVisualInfo *vi = glXChooseVisual(display, 0, att);
+  if (!vi)
   {
-    LOG("XFixes extension not available");
+    LOG("No suitable visual found");
+    XCloseDisplay(display);
     return;
   }
 
-  if (!XShmQueryExtension(display))
+  GLXContext glc = glXCreateContext(display, vi, nullptr, GL_TRUE);
+  if (!glc)
   {
-    LOG("XShm extension not available");
+    LOG("Cannot create OpenGL context");
+    XCloseDisplay(display);
     return;
   }
-  XShmSegmentInfo shminfo;
-  auto image = XShmCreateImage(display,
-                               DefaultVisual(display, DefaultScreen(display)),
-                               DefaultDepth(display, DefaultScreen(display)),
-                               ZPixmap,
-                               nullptr,
-                               &shminfo,
-                               width,
-                               height);
 
-  shminfo.shmid = shmget(IPC_PRIVATE, image->bytes_per_line * image->height, IPC_CREAT | 0777);
-  shminfo.shmaddr = image->data = (char *)shmat(shminfo.shmid, nullptr, 0);
-  shminfo.readOnly = False;
-
-  XShmAttach(display, &shminfo);
+  glXMakeCurrent(display, root, glc);
 
   auto rgb2yuv = Rgb2Yuv{16, width, height};
+
+  unsigned char *pixels = new unsigned char[width * height * 4];
 
   auto target = std::chrono::steady_clock::now() + std::chrono::milliseconds(1000 / 60);
   while (isRunning)
   {
     const auto t1 = std::chrono::steady_clock::now();
-    const auto s = XShmGetImage(display, root, image, x, y, AllPlanes);
-    if (!s)
-    {
-      LOG("Failed to get image");
-      break;
-    }
 
+    glReadBuffer(GL_FRONT);
+    glReadPixels(x, displayHeight - height + y, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels);
     const auto cursorImage = XFixesGetCursorImage(display);
     if (cursorImage)
     {
@@ -234,18 +228,19 @@ auto WebSocketSession::videoThreadFunc() -> void
           const auto cg = static_cast<uint8_t>((cursorPixel >> 8) & 0xff);
           const auto cb = static_cast<uint8_t>(cursorPixel & 0xff);
 
-          const auto imagePixel =
-            reinterpret_cast<uint32_t *>(image->data + imgY * image->bytes_per_line + imgX * 4);
+          const auto imageIndex = ((height - imgY) * width + imgX) * 3;
 
-          const auto ir = static_cast<uint8_t>((*imagePixel >> 16) & 0xff);
-          const auto ig = static_cast<uint8_t>((*imagePixel >> 8) & 0xff);
-          const auto ib = static_cast<uint8_t>(*imagePixel & 0xff);
+          const auto ir = pixels[imageIndex];
+          const auto ig = pixels[imageIndex + 1];
+          const auto ib = pixels[imageIndex + 2];
 
           const auto nr = static_cast<uint8_t>((cr * alpha + ir * (255 - alpha)) / 255);
           const auto ng = static_cast<uint8_t>((cg * alpha + ig * (255 - alpha)) / 255);
           const auto nb = static_cast<uint8_t>((cb * alpha + ib * (255 - alpha)) / 255);
 
-          *imagePixel = (nr << 16U) | (ng << 8U) | nb;
+          pixels[imageIndex] = nr;
+          pixels[imageIndex + 1] = ng;
+          pixels[imageIndex + 2] = nb;
         }
       }
       XFree(cursorImage);
@@ -253,8 +248,8 @@ auto WebSocketSession::videoThreadFunc() -> void
 
     const auto t2 = std::chrono::steady_clock::now();
 
-    const auto src = reinterpret_cast<const uint8_t *>(image->data);
-    const auto srcLineSize = image->bytes_per_line;
+    const auto src = reinterpret_cast<const uint8_t *>(pixels);
+    const auto srcLineSize = width * 3;
 
     uint8_t *dst[3] = {frame->data[0], frame->data[1], frame->data[2]};
     int dstStride[3] = {frame->linesize[0], frame->linesize[1], frame->linesize[2]};
@@ -267,14 +262,20 @@ auto WebSocketSession::videoThreadFunc() -> void
     if (encodeAndSendFrame() < 0)
     {
       LOG("Error encoding and sending frame");
-      XDestroyImage(image);
       break;
     }
     const auto t4 = std::chrono::steady_clock::now();
 
     if (t4 > target)
     {
-      LOG("Frame delayed", t4 - target, "grab", t2 - t1, "color conv", t3 - t2, "encode", t4 - t3);
+      LOG("Frame delayed",
+          std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(t4 - target),
+          "grab",
+          std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(t2 - t1),
+          "color conv",
+          std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(t3 - t2),
+          "encode",
+          std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(t4 - t3));
       target = t4 + std::chrono::milliseconds(1000 / 60);
     }
     else
@@ -284,10 +285,11 @@ auto WebSocketSession::videoThreadFunc() -> void
     }
   }
 
-  XShmDetach(display, &shminfo);
-  shmdt(shminfo.shmaddr);
-  shmctl(shminfo.shmid, IPC_RMID, 0);
+  delete[] pixels;
+
+  glXDestroyContext(display, glc);
   XCloseDisplay(display);
+
   LOG("Video thread ended");
 }
 

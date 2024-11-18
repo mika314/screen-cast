@@ -37,6 +37,7 @@ private:
   int dstStrideV;
 
   std::mutex mutex;
-  std::condition_variable cv;
+  std::condition_variable cvThread;
+  std::condition_variable cvMain;
   bool stop;
 };

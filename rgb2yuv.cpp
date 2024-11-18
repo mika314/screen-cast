@@ -17,7 +17,7 @@ Rgb2Yuv::~Rgb2Yuv()
     auto lock = std::unique_lock<std::mutex>{mutex};
     stop = true;
   }
-  cv.notify_all();
+  cvThread.notify_all();
 
   for (auto &t : threadsData)
     if (t.thread.joinable())
@@ -40,12 +40,12 @@ auto Rgb2Yuv::convert(const uint8_t *aSrc, int aSrcLineSize, uint8_t *const dst[
     for (auto &d : threadsData)
       d.ready = true;
   }
-  cv.notify_all();
+  cvThread.notify_all();
 
   auto lock = std::unique_lock<std::mutex>{mutex};
-  cv.wait(lock, [this] {
+  cvMain.wait(lock, [this] {
     return std::all_of(
-      std::begin(threadsData), std::begin(threadsData), [](const auto &d) { return !d.ready; });
+      std::begin(threadsData), std::end(threadsData), [](const auto &d) { return !d.ready; });
   });
 }
 
@@ -54,7 +54,7 @@ auto Rgb2Yuv::worker(int threadId) -> void
   for (;;)
   {
     auto lock = std::unique_lock<std::mutex>{mutex};
-    cv.wait(lock, [threadId, this] { return threadsData[threadId].ready || stop; });
+    cvThread.wait(lock, [threadId, this] { return threadsData[threadId].ready || stop; });
 
     if (stop)
       break;
@@ -66,14 +66,14 @@ auto Rgb2Yuv::worker(int threadId) -> void
 
     for (auto y = startRow; y < endRow; ++y)
     {
-      const auto srcLine = src + y * srcLineSize;
+      const auto srcLine = src + (height - y) * srcLineSize;
       auto dstYLine = dstY + y * dstStrideY;
 
       for (auto x = 0; x < width; ++x)
       {
-        const auto r = srcLine[x * 4 + 2];
-        const auto g = srcLine[x * 4 + 1];
-        const auto b = srcLine[x * 4 + 0];
+        const auto r = srcLine[x * 3 + 0];
+        const auto g = srcLine[x * 3 + 1];
+        const auto b = srcLine[x * 3 + 2];
 
         dstYLine[x] = ((66 * r + 129 * g + 25 * b + 128) >> 8) + 16;
       }
@@ -85,17 +85,17 @@ auto Rgb2Yuv::worker(int threadId) -> void
 
         for (auto x = 0; x < width; x += 2)
         {
-          const auto idx0 = x * 4;
-          const auto idx1 = (x + 1) * 4;
-          const auto idx2 = (y + 1 < height) ? (x * 4 + srcLineSize) : idx0;
-          const auto idx3 = (y + 1 < height) ? ((x + 1) * 4 + srcLineSize) : idx1;
+          const auto idx0 = x * 3;
+          const auto idx1 = (x + 1) * 3;
+          const auto idx2 = (y + 1 < height) ? (x * 3 + srcLineSize) : idx0;
+          const auto idx3 = (y + 1 < height) ? ((x + 1) * 3 + srcLineSize) : idx1;
 
           const auto r =
-            (srcLine[idx0 + 2] + srcLine[idx1 + 2] + srcLine[idx2 + 2] + srcLine[idx3 + 2]) / 4;
+            (srcLine[idx0 + 0] + srcLine[idx1 + 0] + srcLine[idx2 + 0] + srcLine[idx3 + 0]) / 4;
           const auto g =
             (srcLine[idx0 + 1] + srcLine[idx1 + 1] + srcLine[idx2 + 1] + srcLine[idx3 + 1]) / 4;
           const auto b =
-            (srcLine[idx0 + 0] + srcLine[idx1 + 0] + srcLine[idx2 + 0] + srcLine[idx3 + 0]) / 4;
+            (srcLine[idx0 + 2] + srcLine[idx1 + 2] + srcLine[idx2 + 2] + srcLine[idx3 + 2]) / 4;
 
           const auto uValue = static_cast<uint8_t>(((-38 * r - 74 * g + 112 * b + 128) >> 8) + 128);
           const auto vValue = static_cast<uint8_t>(((112 * r - 94 * g - 18 * b + 128) >> 8) + 128);
@@ -108,6 +108,6 @@ auto Rgb2Yuv::worker(int threadId) -> void
 
     lock.lock();
     threadsData[threadId].ready = false;
-    cv.notify_one();
+    cvMain.notify_one();
   }
 }
