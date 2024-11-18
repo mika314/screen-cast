@@ -24,8 +24,11 @@ function resizeCanvas() {
         canvas.height = windowWidth / aspectRatio;
     }
 
-    canvas.style.width = `${canvas.width}px`;
-    canvas.style.height = `${canvas.height}px`;
+    // Center canvas within the viewport
+    canvas.style.position = 'absolute';
+    canvas.style.left = '50%';
+    canvas.style.top = '50%';
+    canvas.style.transform = 'translate(-50%, -50%)';
 
     console.log(`Canvas resized to: ${canvas.width}x${canvas.height}`);
 }
