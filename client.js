@@ -1,12 +1,13 @@
 const canvas = document.getElementById('videoCanvas');
 const startButton = document.getElementById('startButton');
+const fullscreenToggle = document.getElementById('fullscreenToggle');
 const ctx = canvas.getContext('2d');
 
 let audioContext = null;
 let decoder = null;
 
+// Handle start button for initial fullscreen and WebSocket setup
 startButton.addEventListener('click', async () => {
-    // Create or resume the AudioContext in response to user interaction
     if (!audioContext || audioContext.state === 'closed') {
         audioContext = new AudioContext({ sampleRate: 48000, latencyHint: 'interactive' });
         console.log('AudioContext sample rate:', audioContext.sampleRate);
@@ -27,7 +28,6 @@ startButton.addEventListener('click', async () => {
         await audioContext.resume();
     }
 
-    // Request fullscreen
     if (document.fullscreenEnabled) {
         try {
             await document.body.requestFullscreen();
@@ -58,7 +58,6 @@ startButton.addEventListener('click', async () => {
         const messageType = buffer[0];
 
         if (messageType === 0x01) {
-            // Video data
             const videoData = buffer.slice(1);
 
             if (!decoder) {
@@ -79,8 +78,8 @@ startButton.addEventListener('click', async () => {
                     console.error('Error checking configuration:', err);
                     return;
                 }
-                try {
 
+                try {
                     decoder = new VideoDecoder({
                         output: frame => {
                             ctx.drawImage(frame, 0, 0, canvas.width, canvas.height);
@@ -121,7 +120,6 @@ startButton.addEventListener('click', async () => {
 
             decoder.decode(chunk);
         } else if (messageType === 0x02) {
-            // Audio data
             const audioData = buffer.slice(1);
             if (window.audioNode && window.audioNode.port) {
                 window.audioNode.port.postMessage(audioData);
@@ -130,4 +128,58 @@ startButton.addEventListener('click', async () => {
             console.error('Unknown message type:', messageType);
         }
     };
+});
+
+// Add toggle fullscreen functionality to the floating button
+fullscreenToggle.addEventListener('click', async () => {
+    if (document.fullscreenElement) {
+        try {
+            await document.exitFullscreen();
+            console.log('Fullscreen exited');
+        } catch (err) {
+            console.error('Error exiting fullscreen:', err);
+        }
+    } else if (document.fullscreenEnabled) {
+        try {
+            await document.body.requestFullscreen();
+            console.log('Fullscreen activated');
+        } catch (err) {
+            console.error('Error entering fullscreen:', err);
+        }
+    }
+});
+
+let isDragging = false;
+let offsetX, offsetY;
+
+// Start dragging with touchstart
+fullscreenToggle.addEventListener('touchstart', (event) => {
+    isDragging = true;
+
+    // Get the first touch point
+    const touch = event.touches[0];
+
+    // Calculate the offset between the touch point and the button's position
+    const rect = fullscreenToggle.getBoundingClientRect();
+    offsetX = touch.clientX - rect.left;
+    offsetY = touch.clientY - rect.top;
+
+    fullscreenToggle.style.cursor = 'grabbing';
+});
+
+// Drag with touchmove
+fullscreenToggle.addEventListener('touchmove', (event) => {
+    if (isDragging) {
+        const touch = event.touches[0];
+
+        // Update the button's position
+        fullscreenToggle.style.left = `${touch.clientX - offsetX}px`;
+        fullscreenToggle.style.top = `${touch.clientY - offsetY}px`;
+    }
+});
+
+// Stop dragging with touchend
+fullscreenToggle.addEventListener('touchend', () => {
+    isDragging = false;
+    fullscreenToggle.style.cursor = 'grab';
 });

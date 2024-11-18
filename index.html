@@ -25,16 +25,29 @@
             padding: 1em 2em;
             font-size: 1.5em;
             color: white;
-            background: #007BFF;
+            background: #007bff;
             border: none;
             border-radius: 5px;
             cursor: pointer;
             z-index: 1000;
         }
+        #fullscreenToggle {
+            position: absolute;
+            bottom: 10%;
+            right: 10%;
+            width: 50px;
+            height: 50px;
+            background-color: #ff573340;
+            border: none;
+            border-radius: 50%;
+            cursor: grab;
+            z-index: 1001;
+        }
     </style>
 </head>
 <body>
     <button id="startButton">Start Fullscreen</button>
+    <button id="fullscreenToggle"></button>
     <canvas id="videoCanvas" width="1920" height="1080"></canvas>
     <script src="client.js"></script>
 </body>

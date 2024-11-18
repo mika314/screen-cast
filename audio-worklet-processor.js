@@ -3,7 +3,7 @@ class AudioProcessor extends AudioWorkletProcessor {
         super();
         // Initialize separate buffers for each channel
         this.buffers = [new Float32Array(0), new Float32Array(0)];
-        this.maxBufferLength = 48000 * 2;
+        this.maxBufferLength = 48000 / 12;
 
         this.port.onmessage = event => {
             const audioData = event.data;
