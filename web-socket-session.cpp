@@ -190,9 +190,9 @@ auto WebSocketSession::videoThreadFunc() -> void
 
   glXMakeCurrent(display, root, glc);
 
-  auto rgb2yuv = Rgb2Yuv{16, width, height};
+  auto rgb2yuv = Rgb2Yuv{8, width, height};
 
-  unsigned char *pixels = new unsigned char[width * height * 4];
+  unsigned char *pixels = (uint8_t *)std::aligned_alloc(32, width * height * 4); // Aligned to 32 bytes
 
   auto target = std::chrono::steady_clock::now() + std::chrono::milliseconds(1000 / 60);
   while (isRunning)
@@ -285,7 +285,7 @@ auto WebSocketSession::videoThreadFunc() -> void
     }
   }
 
-  delete[] pixels;
+  free(pixels);
 
   glXDestroyContext(display, glc);
   XCloseDisplay(display);
@@ -352,7 +352,7 @@ auto WebSocketSession::encodeAndSendFrame() -> int
 
 auto WebSocketSession::audioThreadFunc() -> void
 {
-  const size_t bufferSize = 48000 * 2 * 2 / 50; // 0.02 seconds of audio
+  const size_t bufferSize = 960 * 2 * sizeof(int16_t);
   uint8_t buffer[bufferSize];
 
   auto first = true;

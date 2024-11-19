@@ -3,7 +3,7 @@ class AudioProcessor extends AudioWorkletProcessor {
         super();
         // Initialize separate buffers for each channel
         this.buffers = [new Float32Array(0), new Float32Array(0)];
-        this.maxBufferLength = 48000 / 12;
+        this.maxBufferLength = 8 * 1024;
 
         this.port.onmessage = event => {
             const audioData = event.data;
@@ -25,15 +25,15 @@ class AudioProcessor extends AudioWorkletProcessor {
                 newSamples[1][i] = float32Array[i * numChannels + 1];
             }
 
-            // Append to buffers
+            // Check for overflow and clear buffer if necessary
             for (let c = 0; c < numChannels; c++) {
-                this.buffers[c] = concatFloat32Arrays(this.buffers[c], newSamples[c]);
-
-                // Prevent buffer from growing indefinitely
-                if (this.buffers[c].length > this.maxBufferLength) {
-                    console.log("Drop the oldest samples");
-                    this.buffers[c] = this.buffers[c].subarray(this.buffers[c].length - this.maxBufferLength);
+                if (this.buffers[c].length + newSamples[c].length > this.maxBufferLength) {
+                    console.log(`Buffer overflow detected on channel ${c}. Clearing buffer.`);
+                    this.buffers[c] = new Float32Array(0);
                 }
+
+                // Append new samples to the buffer
+                this.buffers[c] = concatFloat32Arrays(this.buffers[c], newSamples[c]);
             }
         };
     }
