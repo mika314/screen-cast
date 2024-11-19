@@ -1,56 +1,59 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
+  <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Screen Cast</title>
     <style>
-        body, html {
-            margin: 0;
-            padding: 0;
-            height: 100%;
-            background-color: black;
-            overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        canvas {
-            display: block;
-            background-color: black;
-        }
-        #startButton {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            padding: 1em 2em;
-            font-size: 1.5em;
-            color: white;
-            background: #007bff;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            z-index: 1000;
-        }
-        #fullscreenToggle {
-            position: absolute;
-            bottom: 10%;
-            right: 10%;
-            width: 50px;
-            height: 50px;
-            background-color: #ff573340;
-            border: none;
-            border-radius: 50%;
-            cursor: grab;
-            z-index: 1001;
-        }
+      body, html {
+          margin: 0;
+          padding: 0;
+          height: 100%;
+          background-color: gray;
+          overflow: hidden;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+      }
+      canvas {
+          width: 1920px;
+          height: 1080px;
+          background-color: black;
+          display: block;
+          position: relative;
+      }
+      #startButton {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          padding: 1em 2em;
+          font-size: 1.5em;
+          color: white;
+          background: #007bff;
+          border: none;
+          border-radius: 5px;
+          cursor: pointer;
+          z-index: 1000;
+      }
+      #fullscreenToggle {
+          position: absolute;
+          bottom: 10%;
+          right: 10%;
+          width: 50px;
+          height: 50px;
+          background-color: #ff573340;
+          border: none;
+          border-radius: 50%;
+          cursor: grab;
+          z-index: 1001;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <button id="startButton">Start Fullscreen</button>
     <button id="fullscreenToggle"></button>
     <canvas id="videoCanvas" width="1920" height="1080"></canvas>
     <script src="client.js"></script>
-</body>
+  </body>
 </html>

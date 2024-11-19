@@ -6,40 +6,8 @@ const ctx = canvas.getContext('2d');
 let audioContext = null;
 let decoder = null;
 
-// Desired aspect ratio
-const aspectRatio = 16 / 9;
-
-// Function to resize canvas while maintaining aspect ratio
-function resizeCanvas() {
-    const windowWidth = window.innerWidth;
-    const windowHeight = window.innerHeight;
-
-    if (windowWidth / windowHeight > aspectRatio) {
-        // Window is too wide, adjust based on height
-        canvas.height = windowHeight;
-        canvas.width = windowHeight * aspectRatio;
-    } else {
-        // Window is too tall, adjust based on width
-        canvas.width = windowWidth;
-        canvas.height = windowWidth / aspectRatio;
-    }
-
-    // Center canvas within the viewport
-    canvas.style.position = 'absolute';
-    canvas.style.left = '50%';
-    canvas.style.top = '50%';
-    canvas.style.transform = 'translate(-50%, -50%)';
-
-    console.log(`Canvas resized to: ${canvas.width}x${canvas.height}`);
-}
-
-// Resize canvas on window resize
-window.addEventListener('resize', resizeCanvas);
-
 // Handle start button for initial fullscreen and WebSocket setup
 startButton.addEventListener('click', async () => {
-    resizeCanvas(); // Ensure canvas is resized before starting
-
     if (!audioContext || audioContext.state === 'closed') {
         audioContext = new AudioContext({ sampleRate: 48000, latencyHint: 'interactive' });
         console.log('AudioContext sample rate:', audioContext.sampleRate);
@@ -215,6 +183,3 @@ fullscreenToggle.addEventListener('touchend', () => {
     isDragging = false;
     fullscreenToggle.style.cursor = 'grab';
 });
-
-// Initial canvas resize
-resizeCanvas();
