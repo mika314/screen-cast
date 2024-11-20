@@ -74,12 +74,12 @@ auto WebSocketSession::initEncoder() -> void
     exit(1);
   }
 
-  codecContext->bit_rate = 5'000'000;
+  codecContext->bit_rate = 0;
   codecContext->width = width;
   codecContext->height = height;
   codecContext->time_base = {1, 60};
   codecContext->framerate = {60, 1};
-  codecContext->gop_size = 240;
+  codecContext->gop_size = 2000;
   codecContext->max_b_frames = 0;
   codecContext->pix_fmt = AV_PIX_FMT_YUV420P;
 
@@ -89,8 +89,7 @@ auto WebSocketSession::initEncoder() -> void
   av_opt_set(codecContext->priv_data, "preset", "ultrafast", 0);
   av_opt_set(codecContext->priv_data, "profile", "baseline", 0);
   av_opt_set(codecContext->priv_data, "tune", "zerolatency", 0);
-  av_opt_set(codecContext->priv_data, "maxrate", "637k", 0);
-  av_opt_set(codecContext->priv_data, "bufsize", "637k", 0);
+  av_opt_set(codecContext->priv_data, "crf", "40", 0);
 
   if (avcodec_open2(codecContext, codec, nullptr) < 0)
   {
