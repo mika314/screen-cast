@@ -4,7 +4,8 @@ const fullscreenToggle = document.getElementById('fullscreenToggle');
 const ctx = canvas.getContext('2d');
 
 let audioContext = null;
-let decoder = null;
+let videoDecoder = null;
+let audioDecoder = null;
 
 // Handle start button for initial fullscreen and WebSocket setup
 startButton.addEventListener('click', async () => {
@@ -60,8 +61,8 @@ startButton.addEventListener('click', async () => {
         if (messageType === 0x01) {
             const videoData = buffer.slice(1);
 
-            if (!decoder) {
-                const config = {
+            if (!videoDecoder) {
+                const videoConfig = {
                     codec: 'avc1.42E01E',
                     codedWidth: 1920,
                     codedHeight: 1080,
@@ -69,7 +70,7 @@ startButton.addEventListener('click', async () => {
                 };
 
                 try {
-                    const support = await VideoDecoder.isConfigSupported(config);
+                    const support = await VideoDecoder.isConfigSupported(videoConfig);
                     if (!support.supported) {
                         console.error('Configuration not supported:', support.config);
                         return;
@@ -80,7 +81,7 @@ startButton.addEventListener('click', async () => {
                 }
 
                 try {
-                    decoder = new VideoDecoder({
+                    videoDecoder = new VideoDecoder({
                         output: frame => {
                             ctx.drawImage(frame, 0, 0, canvas.width, canvas.height);
                             frame.close();
@@ -95,7 +96,7 @@ startButton.addEventListener('click', async () => {
                     return;
                 }
                 try {
-                    decoder.configure(config);
+                    videoDecoder.configure(videoConfig);
                     console.log('VideoDecoder configured');
                 } catch (err) {
                     console.error('Error configuring decoder:', err);
@@ -118,11 +119,72 @@ startButton.addEventListener('click', async () => {
                 data: videoData
             });
 
-            decoder.decode(chunk);
+            videoDecoder.decode(chunk);
         } else if (messageType === 0x02) {
-            const audioData = buffer.slice(1);
-            if (window.audioNode && window.audioNode.port) {
-                window.audioNode.port.postMessage(audioData);
+            const opusData = buffer.slice(1);
+
+            if (!audioDecoder){
+                const audioConfig = {
+                    codec: 'opus',
+                    sampleRate: 48000,
+                    numberOfChannels: 2,
+                };
+                try {
+                    const support = await AudioDecoder.isConfigSupported(audioConfig);
+                    if (!support.supported) {
+                        console.error('Opus configuration not supported:', support.config);
+                        return;
+                    }
+                } catch (err) {
+                    console.error('Error checking Opus configuration:', err);
+                    return;
+                }
+                try {
+                    audioDecoder = new AudioDecoder({
+                        output: (audioData) => {
+                            // Create a Float32Array to hold the audio samples
+                            const numChannels = audioData.numberOfChannels;
+                            const numFrames = audioData.numberOfFrames;
+                            const format = audioData.format; // Should be 'f32' (float32)
+
+                            const audioBuffer = new Float32Array(numFrames * numChannels);
+
+                            // Copy the data from the AudioData object
+                            audioData.copyTo(audioBuffer, {
+                                planeIndex: 0, // Only plane 0 for interleaved formats like f32
+                                format: format,
+                            });
+
+                            audioData.close(); // Free the AudioData resource
+
+                            // Send the extracted data to the AudioWorkletNode
+                            if (window.audioNode && window.audioNode.port) {
+                                window.audioNode.port.postMessage(audioBuffer.buffer, [audioBuffer.buffer]); // Transfer the ArrayBuffer
+                            }
+                        },
+                        error: (err) => {
+                            console.error('AudioDecoder error:', err);
+                        },
+                    });
+                    audioDecoder.configure(audioConfig);
+                } catch (err) {
+                    console.error('Error creating AudioDecoder:', err);
+                }
+
+            }
+
+            if (audioDecoder) {
+                try {
+                    const chunk = new EncodedAudioChunk({
+                        type: 'key', // All Opus packets are treated as key frames
+                        timestamp: performance.now(),
+                        data: opusData,
+                    });
+
+                    audioDecoder.decode(chunk);
+                } catch (err) {
+                    console.error('Error decoding audio chunk:', err);
+                }
             }
         } else {
             console.error('Unknown message type:', messageType);

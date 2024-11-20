@@ -5,16 +5,8 @@ class AudioProcessor extends AudioWorkletProcessor {
         this.buffers = [new Float32Array(0), new Float32Array(0)];
         this.maxBufferLength = 8 * 1024;
 
-        this.port.onmessage = event => {
-            const audioData = event.data;
-            // Assuming 16-bit PCM, stereo, 48kHz
-            const int16Array = new Int16Array(audioData.buffer);
-            const float32Array = new Float32Array(int16Array.length);
-
-            for (let i = 0; i < int16Array.length; i++) {
-                float32Array[i] = int16Array[i] / 32768;
-            }
-
+        this.port.onmessage = (event) => {
+            const float32Array = new Float32Array(event.data);
             const numChannels = 2; // Stereo
             const samplesPerChannel = float32Array.length / numChannels;
 
@@ -25,8 +17,8 @@ class AudioProcessor extends AudioWorkletProcessor {
                 newSamples[1][i] = float32Array[i * numChannels + 1];
             }
 
-            // Check for overflow and clear buffer if necessary
             for (let c = 0; c < numChannels; c++) {
+                // Check for overflow and clear buffer if necessary
                 if (this.buffers[c].length + newSamples[c].length > this.maxBufferLength) {
                     console.log(`Buffer overflow detected on channel ${c}. Clearing buffer.`);
                     this.buffers[c] = new Float32Array(0);

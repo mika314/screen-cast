@@ -4,6 +4,7 @@
 #include <boost/beast.hpp>
 #include <log/log.hpp>
 #include <memory>
+#include <opus/opus.h>
 #include <thread>
 
 extern "C" {
@@ -45,4 +46,11 @@ private:
   pa_simple *paStream = nullptr;
   std::atomic<bool> isRunning = true;
   std::mutex avMutex;
+  OpusEncoder *opusEncoder = nullptr;
+  int opusBitrate = 128'000;
+
+  decltype(std::chrono::steady_clock::now() - std::chrono::steady_clock::now()) grabAcc;
+  decltype(std::chrono::steady_clock::now() - std::chrono::steady_clock::now()) colorConvAcc;
+  decltype(std::chrono::steady_clock::now() - std::chrono::steady_clock::now()) encAcc;
+  int benchCnt = 0;
 };

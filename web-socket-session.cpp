@@ -21,6 +21,12 @@ WebSocketSession::~WebSocketSession()
   LOG("Destructor initiated");
   isRunning = false;
 
+  if (opusEncoder)
+  {
+    opus_encoder_destroy(opusEncoder);
+    opusEncoder = nullptr;
+  }
+
   if (paStream)
   {
     pa_simple_free(paStream);
@@ -68,13 +74,13 @@ auto WebSocketSession::initEncoder() -> void
     exit(1);
   }
 
-  codecContext->bit_rate = 6'000'000;
+  codecContext->bit_rate = 5'000'000;
   codecContext->width = width;
   codecContext->height = height;
   codecContext->time_base = {1, 60};
   codecContext->framerate = {60, 1};
-  codecContext->gop_size = 120;
-  codecContext->max_b_frames = 0; // No B-frames
+  codecContext->gop_size = 240;
+  codecContext->max_b_frames = 0;
   codecContext->pix_fmt = AV_PIX_FMT_YUV420P;
 
   codecContext->flags |= AV_CODEC_FLAG_LOW_DELAY;
@@ -83,6 +89,8 @@ auto WebSocketSession::initEncoder() -> void
   av_opt_set(codecContext->priv_data, "preset", "ultrafast", 0);
   av_opt_set(codecContext->priv_data, "profile", "baseline", 0);
   av_opt_set(codecContext->priv_data, "tune", "zerolatency", 0);
+  av_opt_set(codecContext->priv_data, "maxrate", "637k", 0);
+  av_opt_set(codecContext->priv_data, "bufsize", "637k", 0);
 
   if (avcodec_open2(codecContext, codec, nullptr) < 0)
   {
@@ -124,32 +132,35 @@ void WebSocketSession::initAudio()
   buffer_attr.fragsize = 960;           // 0.005 seconds of audio (960 bytes)
 
   int error;
-  paStream = pa_simple_new(NULL,                     // Use default server
-                           "Screen Cast",            // Application name
-                           PA_STREAM_RECORD,         // Stream direction (recording)
+  paStream = pa_simple_new(NULL,             // Use default server
+                           "Screen Cast",    // Application name
+                           PA_STREAM_RECORD, // Stream direction (recording)
+#if 1
                            "@DEFAULT_SINK@.monitor", // Source to record from
-                           "record",                 // Stream description
-                           &ss,                      // Sample format specification
-                           NULL,                     // Default channel map
-                           &buffer_attr,             // Buffer attributes
-                           &error                    // Error code
+#else
+                           nullptr,
+#endif
+                           "record",     // Stream description
+                           &ss,          // Sample format specification
+                           NULL,         // Default channel map
+                           &buffer_attr, // Buffer attributes
+                           &error        // Error code
   );
 
-  // paStream = pa_simple_new(NULL,             // Use default server
-  //                          "Screen Cast",    // Application name
-  //                          PA_STREAM_RECORD, // Stream direction (recording)
-  //                          nullptr,          // Source to record from
-  //                          "record",         // Stream description
-  //                          &ss,              // Sample format specification
-  //                          NULL,             // Default channel map
-  //                          &buffer_attr,     // Buffer attributes
-  //                          &error            // Error code
-  // );
   if (!paStream)
   {
     LOG("pa_simple_new() failed:", pa_strerror(error));
     exit(1);
   }
+
+  int opusError;
+  opusEncoder = opus_encoder_create(ss.rate, ss.channels, OPUS_APPLICATION_AUDIO, &opusError);
+  if (opusError != OPUS_OK)
+  {
+    LOG("Failed to create Opus encoder:", opus_strerror(opusError));
+    exit(1);
+  }
+  opus_encoder_ctl(opusEncoder, OPUS_SET_BITRATE(opusBitrate));
 }
 
 auto WebSocketSession::startSendingFrames() -> void
@@ -266,6 +277,11 @@ auto WebSocketSession::videoThreadFunc() -> void
     }
     const auto t4 = std::chrono::steady_clock::now();
 
+    grabAcc += t2 - t1;
+    colorConvAcc += t3 - t2;
+    encAcc += t4 - t3;
+    ++benchCnt;
+
     if (t4 > target)
     {
       LOG("Frame delayed",
@@ -323,6 +339,21 @@ auto WebSocketSession::encodeAndSendFrame() -> int
       av_packet_free(&pkt);
       return ret;
     }
+    if ((pkt->flags & AV_PKT_FLAG_KEY) && benchCnt > 0)
+    {
+      LOG("Benchmark cnt",
+          benchCnt,
+          "grab",
+          std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(grabAcc / benchCnt),
+          "colorConv",
+          std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(colorConvAcc / benchCnt),
+          "enc",
+          std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(encAcc / benchCnt));
+      grabAcc = {};
+      colorConvAcc = {};
+      encAcc = {};
+      benchCnt = 0;
+    }
 
     try
     {
@@ -352,30 +383,33 @@ auto WebSocketSession::encodeAndSendFrame() -> int
 
 auto WebSocketSession::audioThreadFunc() -> void
 {
-  const size_t bufferSize = 960 * 2 * sizeof(int16_t);
-  uint8_t buffer[bufferSize];
-
-  auto first = true;
+  const size_t pcmBufferSize = 960 * 2 * sizeof(int16_t); // 960 samples per channel (5ms at 48kHz)
+  uint8_t pcmBuffer[pcmBufferSize];
+  const size_t opusMaxPacketSize = 4000;
+  uint8_t opusBuffer[opusMaxPacketSize];
 
   while (isRunning)
   {
     int error;
-    if (pa_simple_read(paStream, buffer, sizeof(buffer), &error) < 0)
+    if (pa_simple_read(paStream, pcmBuffer, pcmBufferSize, &error) < 0)
     {
       LOG("pa_simple_read() failed:", pa_strerror(error));
       break;
     }
 
-    if (first)
+    // Opus encode the PCM data
+    int opusDataSize = opus_encode(
+      opusEncoder, reinterpret_cast<int16_t *>(pcmBuffer), 960, opusBuffer, opusMaxPacketSize);
+    if (opusDataSize < 0)
     {
-      first = false;
-      LOG("first audio sample");
+      LOG("Opus encoding failed:", opus_strerror(opusDataSize));
+      break;
     }
 
     // Prepend message type byte (0x02 for audio)
     std::vector<uint8_t> message;
     message.push_back(0x02); // Audio data identifier
-    message.insert(message.end(), buffer, buffer + sizeof(buffer));
+    message.insert(message.end(), opusBuffer, opusBuffer + opusDataSize);
 
     try
     {
