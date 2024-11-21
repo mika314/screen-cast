@@ -2,11 +2,17 @@ const canvas = document.getElementById('videoCanvas');
 const startButton = document.getElementById('startButton');
 const fullscreenToggle = document.getElementById('fullscreenToggle');
 const ctx = canvas.getContext('2d');
+const maxTimeThreshold = 500; // milliseconds
+const maxDistanceThreshold = 20 * 20;
 
 let audioContext = null;
 let videoDecoder = null;
 let audioDecoder = null;
 let ws;
+let touchStartX = null;
+let touchStartY = null;
+let touchStartTime = null;
+let touchActive = false;
 
 // Handle start button for initial fullscreen and WebSocket setup
 startButton.addEventListener('click', async () => {
@@ -54,9 +60,14 @@ startButton.addEventListener('click', async () => {
         canvas.addEventListener('touchstart', function(event) {
             event.preventDefault();
             const touch = event.touches[0];
+            touchActive = true;
             const rect = canvas.getBoundingClientRect();
             const x = touch.clientX - rect.left;
             const y = touch.clientY - rect.top;
+
+            touchStartX = x;
+            touchStartY = y;
+            touchStartTime = performance.now();
 
             // Send touch start event to server
             const message = {
@@ -69,8 +80,30 @@ startButton.addEventListener('click', async () => {
 
         canvas.addEventListener('pointermove', function(event) {
             event.preventDefault();
+            if (!event.isPrimary)
+                return;
+            if (touchActive)
+            {
+                const rect = canvas.getBoundingClientRect();
+                const x = event.clientX - rect.left;
+                const y = event.clientY - rect.top;
 
-            if (event.isPrimary) {
+                const deltaTime = performance.now() - touchStartTime;
+                const deltaX = x - touchStartX;
+                const deltaY = y - touchStartY;
+                const distanceSquared = deltaX * deltaX + deltaY * deltaY;
+
+                if (deltaTime > maxTimeThreshold || distanceSquared > maxDistanceThreshold) {
+                    const message = {
+                        type: 'touchmove',
+                        x: x,
+                        y: y
+                    };
+                    ws.send(JSON.stringify(message));
+                }
+            }
+            else
+            {
                 const rect = canvas.getBoundingClientRect();
                 const x = event.clientX - rect.left;
                 const y = event.clientY - rect.top;
@@ -86,21 +119,42 @@ startButton.addEventListener('click', async () => {
 
         canvas.addEventListener('touchend', function(event) {
             event.preventDefault();
-            // Get the touch point
+            touchActive = false;
             const touch = event.changedTouches[0];
             const rect = canvas.getBoundingClientRect();
             const x = touch.clientX - rect.left;
             const y = touch.clientY - rect.top;
+            const touchEndTime = performance.now();
 
-            // Send touch end event to server
-            const message = {
-                type: 'touchend',
-                x: x,
-                y: y
-            };
-            ws.send(JSON.stringify(message));
+            // Calculate time and movement differences
+            const deltaTime = touchEndTime - touchStartTime;
+            const deltaX = x - touchStartX;
+            const deltaY = y - touchStartY;
+            const distanceSquared = deltaX * deltaX + deltaY * deltaY;
+
+            if (deltaTime <= maxTimeThreshold && distanceSquared <= maxDistanceThreshold) {
+                // Consider it as a click at the touchStart position
+                const message = {
+                    type: 'touchend',
+                    x: touchStartX,
+                    y: touchStartY
+                };
+                ws.send(JSON.stringify(message));
+            } else {
+                // Send touchend event with current position
+                const message = {
+                    type: 'touchend',
+                    x: x,
+                    y: y
+                };
+                ws.send(JSON.stringify(message));
+            }
+
+            // Reset touch start variables
+            touchStartX = null;
+            touchStartY = null;
+            touchStartTime = null;
         });
-
         canvas.addEventListener('wheel', function(event) {
             event.preventDefault();
             const deltaY = .02 * event.deltaY;
