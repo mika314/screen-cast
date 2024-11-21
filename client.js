@@ -6,6 +6,7 @@ const ctx = canvas.getContext('2d');
 let audioContext = null;
 let videoDecoder = null;
 let audioDecoder = null;
+let ws;
 
 // Handle start button for initial fullscreen and WebSocket setup
 startButton.addEventListener('click', async () => {
@@ -45,7 +46,7 @@ startButton.addEventListener('click', async () => {
     startButton.style.display = 'none';
 
     console.log("connecting to ws://localhost:8090/");
-    const ws = new WebSocket('ws://localhost:8090/');
+    ws = new WebSocket('ws://localhost:8090/');
     ws.binaryType = 'arraybuffer';
 
     ws.onopen = async function() {
@@ -244,4 +245,53 @@ fullscreenToggle.addEventListener('touchmove', (event) => {
 fullscreenToggle.addEventListener('touchend', () => {
     isDragging = false;
     fullscreenToggle.style.cursor = 'grab';
+});
+
+canvas.addEventListener('touchstart', function(event) {
+    event.preventDefault();
+    const touch = event.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+
+    // Send touch start event to server
+    const message = {
+        type: 'touchstart',
+        x: x,
+        y: y
+    };
+    ws.send(JSON.stringify(message));
+});
+
+canvas.addEventListener('touchmove', function(event) {
+    event.preventDefault();
+    const touch = event.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+
+    // Send touch move event to server
+    const message = {
+        type: 'touchmove',
+        x: x,
+        y: y
+    };
+    ws.send(JSON.stringify(message));
+});
+
+canvas.addEventListener('touchend', function(event) {
+    event.preventDefault();
+    // Get the touch point
+    const touch = event.changedTouches[0];
+    const rect = canvas.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+
+    // Send touch end event to server
+    const message = {
+        type: 'touchend',
+        x: x,
+        y: y
+    };
+    ws.send(JSON.stringify(message));
 });

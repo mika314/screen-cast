@@ -1,1 +1,2 @@
-cflags = "-mavx2 -mfma"
+cflags="-mavx2 -mfma"
+ldflags="-lXtst"

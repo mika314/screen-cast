@@ -1,4 +1,5 @@
 #pragma once
+#include <X11/Xlib.h>
 #include <atomic>
 #include <boost/asio.hpp>
 #include <boost/beast.hpp>
@@ -27,12 +28,15 @@ public:
   auto run(http::request<http::string_body> req) -> void;
 
 private:
-  auto initEncoder() -> void;
-  auto initAudio() -> void;
-  auto startSendingFrames() -> void;
-  auto encodeAndSendFrame() -> int;
-  auto videoThreadFunc() -> void;
   auto audioThreadFunc() -> void;
+  auto doRead() -> void;
+  auto encodeAndSendFrame() -> int;
+  auto initAudio() -> void;
+  auto initEncoder() -> void;
+  auto onMessage(boost::system::error_code ec, std::size_t bytes_transferred) -> void;
+  auto simulateMouseEvent(const std::string &type, int x, int y) -> void;
+  auto startSendingFrames() -> void;
+  auto videoThreadFunc() -> void;
 
   websocket::stream<tcp::socket> ws;
   AVCodec *codec = nullptr;
@@ -48,9 +52,10 @@ private:
   std::mutex avMutex;
   OpusEncoder *opusEncoder = nullptr;
   int opusBitrate = 128'000;
-
   decltype(std::chrono::steady_clock::now() - std::chrono::steady_clock::now()) grabAcc;
   decltype(std::chrono::steady_clock::now() - std::chrono::steady_clock::now()) colorConvAcc;
   decltype(std::chrono::steady_clock::now() - std::chrono::steady_clock::now()) encAcc;
   int benchCnt = 0;
+  Display *display = nullptr;
+  boost::beast::flat_buffer buffer;
 };

@@ -2,11 +2,13 @@
 #include "rgb2yuv.hpp"
 #include <GL/gl.h>
 #include <GL/glx.h>
-#include <X11/Xlib.h>
 #include <X11/Xutil.h>
+#include <X11/extensions/XTest.h>
 #include <X11/extensions/Xfixes.h>
+#include <json-ser/json-ser.hpp>
 #include <pulse/error.h>
 #include <pulse/simple.h>
+#include <ser/macro.hpp>
 #include <sys/ipc.h>
 #include <sys/shm.h>
 
@@ -14,6 +16,13 @@ WebSocketSession::WebSocketSession(tcp::socket socket) : ws(std::move(socket))
 {
   initEncoder();
   initAudio();
+
+  display = XOpenDisplay(NULL);
+  if (!display)
+  {
+    LOG("Cannot open display");
+    // Handle error appropriately
+  }
 }
 
 WebSocketSession::~WebSocketSession()
@@ -43,6 +52,13 @@ WebSocketSession::~WebSocketSession()
     av_frame_free(&frame);
     frame = nullptr;
   }
+
+  if (display)
+  {
+    XCloseDisplay(display);
+    display = nullptr;
+  }
+
   LOG("Destructor finished");
 }
 
@@ -50,6 +66,8 @@ auto WebSocketSession::run(http::request<http::string_body> req) -> void
 {
   LOG("Accept the WebSocket handshake");
   ws.accept(req);
+
+  doRead();
 
   LOG("Start sending frames");
   startSendingFrames();
@@ -423,4 +441,77 @@ auto WebSocketSession::audioThreadFunc() -> void
     }
   }
   LOG("Audio thread ended");
+}
+
+auto WebSocketSession::doRead() -> void
+{
+  ws.async_read(buffer,
+                boost::beast::bind_front_handler(&WebSocketSession::onMessage, shared_from_this()));
+}
+
+namespace
+{
+  struct ClientMsg
+  {
+    std::string type;
+    float x;
+    float y;
+    SER_PROPS(type, x, y);
+  };
+} // namespace
+
+auto WebSocketSession::onMessage(boost::system::error_code ec, std::size_t bytes_transferred) -> void
+{
+  boost::ignore_unused(bytes_transferred);
+  if (ec)
+  {
+    if (ec == websocket::error::closed)
+    {
+      LOG("WebSocket closed by client");
+      return;
+    }
+    LOG("WebSocket read error:", ec.message());
+    return;
+  }
+
+  auto message = std::istringstream{boost::beast::buffers_to_string(buffer.data())};
+  buffer.consume(buffer.size());
+
+  try
+  {
+    auto msg = ClientMsg{};
+    jsonDeser(message, msg);
+    if (msg.type == "touchstart" || msg.type == "touchmove" || msg.type == "touchend")
+      simulateMouseEvent(msg.type, msg.x, msg.y);
+  }
+  catch (const std::exception &e)
+  {
+    LOG("Error parsing message from client:", e.what());
+  }
+
+  doRead();
+}
+
+auto WebSocketSession::simulateMouseEvent(const std::string &type, int x, int y) -> void
+{
+  if (!display)
+  {
+    LOG("Display not initialized");
+    return;
+  }
+
+  if (type == "touchstart")
+  {
+    XTestFakeMotionEvent(display, -1, x, y, CurrentTime);
+    XTestFakeButtonEvent(display, 1, True, CurrentTime);
+  }
+  else if (type == "touchmove")
+    XTestFakeMotionEvent(display, -1, x, y, CurrentTime);
+  else if (type == "touchend")
+  {
+    XTestFakeMotionEvent(display, -1, x, y, CurrentTime);
+    XTestFakeButtonEvent(display, 1, False, CurrentTime);
+  }
+
+  XFlush(display);
 }
