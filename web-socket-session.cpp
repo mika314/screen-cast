@@ -107,7 +107,7 @@ auto WebSocketSession::initEncoder() -> void
   av_opt_set(codecContext->priv_data, "preset", "ultrafast", 0);
   av_opt_set(codecContext->priv_data, "profile", "baseline", 0);
   av_opt_set(codecContext->priv_data, "tune", "zerolatency", 0);
-  av_opt_set(codecContext->priv_data, "crf", "37", 0);
+  av_opt_set(codecContext->priv_data, "crf", "34", 0);
 
   if (avcodec_open2(codecContext, codec, nullptr) < 0)
   {
