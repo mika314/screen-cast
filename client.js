@@ -51,6 +51,65 @@ startButton.addEventListener('click', async () => {
 
     ws.onopen = async function() {
         console.log('WebSocket connection opened');
+        canvas.addEventListener('touchstart', function(event) {
+            event.preventDefault();
+            const touch = event.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+
+            // Send touch start event to server
+            const message = {
+                type: 'touchstart',
+                x: x,
+                y: y
+            };
+            ws.send(JSON.stringify(message));
+        });
+
+        canvas.addEventListener('pointermove', function(event) {
+            event.preventDefault();
+
+            if (event.isPrimary) {
+                const rect = canvas.getBoundingClientRect();
+                const x = event.clientX - rect.left;
+                const y = event.clientY - rect.top;
+
+                const message = {
+                    type: 'touchmove',
+                    x: x,
+                    y: y
+                };
+                ws.send(JSON.stringify(message));
+            }
+        });
+
+        canvas.addEventListener('touchend', function(event) {
+            event.preventDefault();
+            // Get the touch point
+            const touch = event.changedTouches[0];
+            const rect = canvas.getBoundingClientRect();
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+
+            // Send touch end event to server
+            const message = {
+                type: 'touchend',
+                x: x,
+                y: y
+            };
+            ws.send(JSON.stringify(message));
+        });
+
+        canvas.addEventListener('wheel', function(event) {
+            event.preventDefault();
+            const deltaY = .02 * event.deltaY;
+            const message = {
+                type: 'scroll',
+                deltaY: deltaY
+            };
+            ws.send(JSON.stringify(message));
+        });
     };
 
     ws.onmessage = async function(event) {
@@ -230,7 +289,6 @@ fullscreenToggle.addEventListener('touchstart', (event) => {
     fullscreenToggle.style.cursor = 'grabbing';
 });
 
-// Drag with touchmove
 fullscreenToggle.addEventListener('touchmove', (event) => {
     if (isDragging) {
         const touch = event.touches[0];
@@ -241,57 +299,8 @@ fullscreenToggle.addEventListener('touchmove', (event) => {
     }
 });
 
-// Stop dragging with touchend
 fullscreenToggle.addEventListener('touchend', () => {
     isDragging = false;
     fullscreenToggle.style.cursor = 'grab';
 });
 
-canvas.addEventListener('touchstart', function(event) {
-    event.preventDefault();
-    const touch = event.touches[0];
-    const rect = canvas.getBoundingClientRect();
-    const x = touch.clientX - rect.left;
-    const y = touch.clientY - rect.top;
-
-    // Send touch start event to server
-    const message = {
-        type: 'touchstart',
-        x: x,
-        y: y
-    };
-    ws.send(JSON.stringify(message));
-});
-
-canvas.addEventListener('touchmove', function(event) {
-    event.preventDefault();
-    const touch = event.touches[0];
-    const rect = canvas.getBoundingClientRect();
-    const x = touch.clientX - rect.left;
-    const y = touch.clientY - rect.top;
-
-    // Send touch move event to server
-    const message = {
-        type: 'touchmove',
-        x: x,
-        y: y
-    };
-    ws.send(JSON.stringify(message));
-});
-
-canvas.addEventListener('touchend', function(event) {
-    event.preventDefault();
-    // Get the touch point
-    const touch = event.changedTouches[0];
-    const rect = canvas.getBoundingClientRect();
-    const x = touch.clientX - rect.left;
-    const y = touch.clientY - rect.top;
-
-    // Send touch end event to server
-    const message = {
-        type: 'touchend',
-        x: x,
-        y: y
-    };
-    ws.send(JSON.stringify(message));
-});

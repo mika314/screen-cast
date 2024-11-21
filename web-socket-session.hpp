@@ -35,6 +35,7 @@ private:
   auto initEncoder() -> void;
   auto onMessage(boost::system::error_code ec, std::size_t bytes_transferred) -> void;
   auto simulateMouseEvent(const std::string &type, int x, int y) -> void;
+  auto simulateScrollEvent(float deltaY) -> void;
   auto startSendingFrames() -> void;
   auto videoThreadFunc() -> void;
 
@@ -58,4 +59,5 @@ private:
   int benchCnt = 0;
   Display *display = nullptr;
   boost::beast::flat_buffer buffer;
+  float deltaAcc = 0.f;
 };

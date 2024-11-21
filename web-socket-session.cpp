@@ -456,7 +456,8 @@ namespace
     std::string type;
     float x;
     float y;
-    SER_PROPS(type, x, y);
+    float deltaY;
+    SER_PROPS(type, x, y, deltaY);
   };
 } // namespace
 
@@ -483,6 +484,8 @@ auto WebSocketSession::onMessage(boost::system::error_code ec, std::size_t bytes
     jsonDeser(message, msg);
     if (msg.type == "touchstart" || msg.type == "touchmove" || msg.type == "touchend")
       simulateMouseEvent(msg.type, msg.x, msg.y);
+    else if (msg.type == "scroll")
+      simulateScrollEvent(msg.deltaY);
   }
   catch (const std::exception &e)
   {
@@ -511,6 +514,27 @@ auto WebSocketSession::simulateMouseEvent(const std::string &type, int x, int y)
   {
     XTestFakeMotionEvent(display, -1, x, y, CurrentTime);
     XTestFakeButtonEvent(display, 1, False, CurrentTime);
+  }
+
+  XFlush(display);
+}
+
+auto WebSocketSession::simulateScrollEvent(float deltaY) -> void
+{
+  if (!display)
+  {
+    LOG("Display not initialized");
+    return;
+  }
+
+  deltaAcc += deltaY;
+  const auto clicks = static_cast<int>(deltaAcc);
+  deltaAcc -= clicks;
+  const auto button = clicks < 0 ? 4 : 5;
+  for (auto i = 0; i < std::abs(clicks); ++i)
+  {
+    XTestFakeButtonEvent(display, button, True, CurrentTime);
+    XTestFakeButtonEvent(display, button, False, CurrentTime);
   }
 
   XFlush(display);
