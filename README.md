@@ -28,6 +28,7 @@ Screen Cast allows you to stream your computer's screen directly to your Oculus 
    libx11-dev \
    libxext-dev \
    libxfixes-dev \
+   libxtst-dev \
    pkg-config
    ```
 
