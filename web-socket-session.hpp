@@ -60,4 +60,5 @@ private:
   Display *display = nullptr;
   boost::beast::flat_buffer buffer;
   float deltaAcc = 0.f;
+  decltype(std::chrono::steady_clock::now()) lastMouseEventFromClient = {};
 };

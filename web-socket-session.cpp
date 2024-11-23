@@ -229,46 +229,50 @@ auto WebSocketSession::videoThreadFunc() -> void
 
     glReadBuffer(GL_FRONT);
     glReadPixels(x, displayHeight - height + y, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels);
-    const auto cursorImage = XFixesGetCursorImage(display);
-    if (cursorImage)
+    using namespace std::chrono_literals;
+    if (t1 > lastMouseEventFromClient + 1s)
     {
-      const auto cursorX = cursorImage->x - cursorImage->xhot - x;
-      const auto cursorY = cursorImage->y - cursorImage->yhot - y;
-
-      for (auto j = 0; j < cursorImage->height; ++j)
+      const auto cursorImage = XFixesGetCursorImage(display);
+      if (cursorImage)
       {
-        const auto imgY = cursorY + j;
-        if (imgY < 0 || imgY >= height)
-          continue;
+        const auto cursorX = cursorImage->x - cursorImage->xhot - x;
+        const auto cursorY = cursorImage->y - cursorImage->yhot - y;
 
-        for (auto i = 0; i < cursorImage->width; ++i)
+        for (auto j = 0; j < cursorImage->height; ++j)
         {
-          const auto imgX = cursorX + i;
-          if (imgX < 0 || imgX >= width)
+          const auto imgY = cursorY + j;
+          if (imgY < 0 || imgY >= height)
             continue;
 
-          const auto cursorPixel = cursorImage->pixels[j * cursorImage->width + i];
-          const auto alpha = (cursorPixel >> 24) & 0xff;
-          if (alpha == 0)
-            continue;
+          for (auto i = 0; i < cursorImage->width; ++i)
+          {
+            const auto imgX = cursorX + i;
+            if (imgX < 0 || imgX >= width)
+              continue;
 
-          const auto cr = static_cast<uint8_t>((cursorPixel >> 16) & 0xff);
-          const auto cg = static_cast<uint8_t>((cursorPixel >> 8) & 0xff);
-          const auto cb = static_cast<uint8_t>(cursorPixel & 0xff);
+            const auto cursorPixel = cursorImage->pixels[j * cursorImage->width + i];
+            const auto alpha = (cursorPixel >> 24) & 0xff;
+            if (alpha == 0)
+              continue;
 
-          const auto imageIndex = ((height - imgY) * width + imgX) * 3;
+            const auto cr = static_cast<uint8_t>((cursorPixel >> 16) & 0xff);
+            const auto cg = static_cast<uint8_t>((cursorPixel >> 8) & 0xff);
+            const auto cb = static_cast<uint8_t>(cursorPixel & 0xff);
 
-          const auto ir = pixels[imageIndex];
-          const auto ig = pixels[imageIndex + 1];
-          const auto ib = pixels[imageIndex + 2];
+            const auto imageIndex = ((height - imgY) * width + imgX) * 3;
 
-          const auto nr = static_cast<uint8_t>((cr * alpha + ir * (255 - alpha)) / 255);
-          const auto ng = static_cast<uint8_t>((cg * alpha + ig * (255 - alpha)) / 255);
-          const auto nb = static_cast<uint8_t>((cb * alpha + ib * (255 - alpha)) / 255);
+            const auto ir = pixels[imageIndex];
+            const auto ig = pixels[imageIndex + 1];
+            const auto ib = pixels[imageIndex + 2];
 
-          pixels[imageIndex] = nr;
-          pixels[imageIndex + 1] = ng;
-          pixels[imageIndex + 2] = nb;
+            const auto nr = static_cast<uint8_t>((cr * alpha + ir * (255 - alpha)) / 255);
+            const auto ng = static_cast<uint8_t>((cg * alpha + ig * (255 - alpha)) / 255);
+            const auto nb = static_cast<uint8_t>((cb * alpha + ib * (255 - alpha)) / 255);
+
+            pixels[imageIndex] = nr;
+            pixels[imageIndex + 1] = ng;
+            pixels[imageIndex + 2] = nb;
+          }
         }
       }
       XFree(cursorImage);
@@ -486,6 +490,7 @@ auto WebSocketSession::onMessage(boost::system::error_code ec, std::size_t bytes
       simulateMouseEvent(msg.type, msg.x, msg.y);
     else if (msg.type == "scroll")
       simulateScrollEvent(msg.deltaY);
+    lastMouseEventFromClient = std::chrono::steady_clock::now();
   }
   catch (const std::exception &e)
   {
