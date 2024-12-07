@@ -220,7 +220,7 @@ auto WebSocketSession::videoThreadFunc() -> void
 
   auto rgb2yuv = Rgb2Yuv{8, width, height};
 
-  unsigned char *pixels = (uint8_t *)std::aligned_alloc(32, width * height * 4); // Aligned to 32 bytes
+  unsigned char *pixels = (uint8_t *)std::aligned_alloc(32, width * height * 3); // Aligned to 32 bytes
 
   auto target = std::chrono::steady_clock::now() + std::chrono::milliseconds(1000 / 60);
   while (isRunning)
