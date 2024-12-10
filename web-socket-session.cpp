@@ -260,6 +260,8 @@ auto WebSocketSession::videoThreadFunc() -> void
             const auto cb = static_cast<uint8_t>(cursorPixel & 0xff);
 
             const auto imageIndex = ((height - imgY) * width + imgX) * 3;
+            if (imageIndex < 0 || imageIndex >= width * height * 3)
+              continue;
 
             const auto ir = pixels[imageIndex];
             const auto ig = pixels[imageIndex + 1];
