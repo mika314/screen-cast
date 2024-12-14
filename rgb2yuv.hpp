@@ -30,11 +30,9 @@ private:
   const uint8_t *src;
   int srcLineSize;
   uint8_t *dstY;
-  uint8_t *dstU;
-  uint8_t *dstV;
+  uint8_t *dstUV;
   int dstStrideY;
-  int dstStrideU;
-  int dstStrideV;
+  int dstStrideUV;
 
   std::mutex mutex;
   std::condition_variable cvThread;

@@ -77,8 +77,8 @@ auto WebSocketSession::initEncoder() -> void
 {
   LOG("Initialize FFmpeg encoder");
 
-  // codec = avcodec_find_encoder_by_name("h264_nvenc");
-  codec = avcodec_find_encoder(AV_CODEC_ID_H264);
+  codec = avcodec_find_encoder_by_name("h264_nvenc");
+  // codec = avcodec_find_encoder(AV_CODEC_ID_H264);
   if (!codec)
   {
     LOG("Codec not found");
@@ -92,14 +92,14 @@ auto WebSocketSession::initEncoder() -> void
     exit(1);
   }
 
-  codecContext->bit_rate = 0;
+  codecContext->bit_rate = 5'000'000;
   codecContext->width = width;
   codecContext->height = height;
   codecContext->time_base = {1, 60};
   codecContext->framerate = {60, 1};
   codecContext->gop_size = 2000;
   codecContext->max_b_frames = 0;
-  codecContext->pix_fmt = AV_PIX_FMT_YUV420P;
+  codecContext->pix_fmt = AV_PIX_FMT_NV12;
 
   codecContext->flags |= AV_CODEC_FLAG_LOW_DELAY;
   codecContext->thread_count = 0;
