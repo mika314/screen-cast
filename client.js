@@ -218,18 +218,27 @@ startButton.addEventListener('click', async () => {
                 }
             }
 
-            // Parse NAL units to determine frame type
-            if (videoData.length < 5) {
-                console.error('Video data too short to determine frame type');
-                return;
+            // Correctly identify key frames by searching for SPS (7) or IDR (5) NAL units
+            let isKeyFrame = false;
+            for (let i = 0; i < Math.min(videoData.length - 4, 100); i++) {
+                if (videoData[i] === 0 && videoData[i + 1] === 0 && videoData[i + 2] === 1) {
+                    const type = videoData[i + 3] & 0x1F;
+                    if (type === 5 || type === 7) {
+                        isKeyFrame = true;
+                        break;
+                    }
+                } else if (videoData[i] === 0 && videoData[i + 1] === 0 && videoData[i + 2] === 0 && videoData[i + 3] === 1) {
+                    const type = videoData[i + 4] & 0x1F;
+                    if (type === 5 || type === 7) {
+                        isKeyFrame = true;
+                        break;
+                    }
+                }
             }
 
-            const type = videoData[4] & 0x1F;
-            const frameType = (type === 5) ? 'key' : 'delta';
-
             const chunk = new EncodedVideoChunk({
-                type: frameType,
-                timestamp: performance.now(),
+                type: isKeyFrame ? 'key' : 'delta',
+                timestamp: performance.now() * 1000, // Timestamps should be in microseconds
                 data: videoData
             });
 

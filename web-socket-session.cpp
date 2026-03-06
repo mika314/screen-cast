@@ -216,7 +216,13 @@ auto WebSocketSession::videoThreadFunc() -> void
     return;
   }
 
-  glXMakeCurrent(display, root, glc);
+  if (!glXMakeCurrent(display, root, glc))
+  {
+    LOG("Cannot make OpenGL context current on root window");
+    glXDestroyContext(display, glc);
+    XCloseDisplay(display);
+    return;
+  }
 
   auto rgb2yuv = Rgb2Yuv{8, width, height};
 
@@ -229,6 +235,7 @@ auto WebSocketSession::videoThreadFunc() -> void
 
     glReadBuffer(GL_FRONT);
     glReadPixels(x, displayHeight - height + y, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels);
+
     using namespace std::chrono_literals;
     if (t1 > lastMouseEventFromClient + 1s)
     {
