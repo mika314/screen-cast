@@ -32,21 +32,15 @@ Screen Cast allows you to stream your computer's screen directly to your Oculus 
    pkg-config
    ```
 
-2. **Install and Build `coddle` (Build Tool)**
+2. **Clone and Build Screen Cast**
    ```bash
-   git clone https://github.com/coddle-cpp/coddle.git
-   cd coddle
-   ./build.sh
-   sudo ./deploy.sh
-   cd ..
-   ```
-
-3. **Clone and Build Screen Cast**
-   ```bash
-   git clone https://github.com/mika314/screen-cast.git
+   git clone --recurse-submodules https://github.com/mika314/screen-cast.git
    cd screen-cast
    make
    ```
+
+   `make` builds the `coddle` submodule, then builds the project with it.
+   If you already cloned without submodules, run `git submodule update --init`.
 
 ---
 

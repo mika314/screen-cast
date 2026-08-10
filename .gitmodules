@@ -1,0 +1,3 @@
+[submodule "coddle"]
+	path = coddle
+	url = https://github.com/coddle-cpp/coddle.git

@@ -1,2 +1,4 @@
 /.coddle/
 /screen-cast
+/.clangd
+/.dir-locals.el
