@@ -45,7 +45,7 @@ void Session::handleHttpRequest()
 {
   LOG("Build the path to the requested file");
   const auto path = [&]() {
-    auto r = req.target().to_string();
+    auto r = std::string{req.target()};
     if (r == "/")
       return std::string{"/index.html"};
     return r;

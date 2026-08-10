@@ -40,7 +40,7 @@ private:
   auto videoThreadFunc() -> void;
 
   websocket::stream<tcp::socket> ws;
-  AVCodec *codec = nullptr;
+  const AVCodec *codec = nullptr;
   AVCodecContext *codecContext = nullptr;
   AVFrame *frame = nullptr;
   int frameIndex = 0;
