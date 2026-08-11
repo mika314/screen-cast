@@ -13,47 +13,66 @@ fi
 echo "✔️  Using device $serial"
 adb=(adb -s "$serial")
 
-# Drop any leftover Wi-Fi adb sessions so commands don't hit "more than one device"
-while read -r other; do
-  [[ -z "$other" || "$other" == "$serial" ]] && continue
-  if [[ "$other" == *:* ]]; then
-    echo "✔️  Disconnecting stale adb session $other"
-    adb disconnect "$other" >/dev/null || true
-  fi
-done < <(adb devices | awk '/\sdevice$/ {print $1}')
+echo
+echo "Connection mode:"
+echo "  1) Tethered (USB)"
+echo "  2) Wi-Fi"
+read -r -p "Choose [1/2]: " mode
 
-# Grab the device's WLAN IP (adjust interface if yours isn’t wlan0)
-device_ip=$("${adb[@]}" shell ip addr show wlan0 \
-  | awk '/inet / {print $2}' \
-  | cut -d/ -f1 \
-  | tr -d '\r')
+case "$mode" in
+  1|"")
+    echo "✔️  Using tethered mode"
+    ;;
+  2)
+    # Drop any leftover Wi-Fi adb sessions so commands don't hit "more than one device"
+    while read -r other; do
+      [[ -z "$other" || "$other" == "$serial" ]] && continue
+      if [[ "$other" == *:* ]]; then
+        echo "✔️  Disconnecting stale adb session $other"
+        adb disconnect "$other" >/dev/null || true
+      fi
+    done < <(adb devices | awk '/\sdevice$/ {print $1}')
 
-if [[ -z "$device_ip" ]]; then
-  echo "⚠️  Could not determine device IP. Is Wi-Fi enabled on the device?"
-  exit 1
-fi
+    # Grab the device's WLAN IP (adjust interface if yours isn’t wlan0)
+    device_ip=$("${adb[@]}" shell ip addr show wlan0 \
+      | awk '/inet / {print $2}' \
+      | cut -d/ -f1 \
+      | tr -d '\r')
 
-echo "✔️  Device IP is $device_ip"
+    if [[ -z "$device_ip" ]]; then
+      echo "⚠️  Could not determine device IP. Is Wi-Fi enabled on the device?"
+      exit 1
+    fi
 
-# Switch ADB to TCP mode on port 5555
-"${adb[@]}" tcpip 5555
+    echo "✔️  Device IP is $device_ip"
 
-# Prompt before unplugging USB
-read -r -p "🔌  Please disconnect the USB cable, then press Enter to continue…"
+    # Switch ADB to TCP mode on port 5555
+    "${adb[@]}" tcpip 5555
 
-# Connect over Wi-Fi
-if adb connect "${device_ip}:5555" | grep -q 'connected'; then
-  echo "✔️  Connected over Wi-Fi"
-else
-  echo "⚠️  Failed to connect to ${device_ip}:5555"
-  exit 1
-fi
+    # Prompt before unplugging USB
+    read -r -p "🔌  Please disconnect the USB cable, then press Enter to continue…"
 
-serial="${device_ip}:5555"
-adb=(adb -s "$serial")
+    # Connect over Wi-Fi
+    if adb connect "${device_ip}:5555" | grep -q 'connected'; then
+      echo "✔️  Connected over Wi-Fi"
+    else
+      echo "⚠️  Failed to connect to ${device_ip}:5555"
+      exit 1
+    fi
+
+    serial="${device_ip}:5555"
+    adb=(adb -s "$serial")
+    ;;
+  *)
+    echo "⚠️  Invalid choice. Enter 1 for tethered or 2 for Wi-Fi."
+    exit 1
+    ;;
+esac
 
 # Reverse local port (optional, for local web-server debugging on 8090)
 "${adb[@]}" reverse tcp:8090 tcp:8090
+
+echo "✔️  Open http://localhost:8090 on the Quest"
 
 # Launch your screen-cast binary (in the same dir as this script)
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -61,41 +61,25 @@ sudo apt install adb
 4. Reboot your Oculus Quest.
 
 #### **Connect Oculus Quest to Your Computer**
-1. **Tethered Mode**:
-   - Connect your Oculus Quest to your computer using a USB cable.
-   - In the terminal, run:
-     ```bash
-     adb devices
-     ```
-     Accept any permissions on the Oculus Quest.
-
-2. **Wi-Fi Mode**:
-   - Ensure the Oculus Quest and your computer are on the same Wi-Fi network.
-   - Tether the Oculus Quest via USB and set up ADB over Wi-Fi:
-     ```bash
-     adb tcpip 5555
-     adb connect <IP_ADDRESS_OF_OCULUS_QUEST>:5555
-     ```
-   - Disconnect the USB cable and ensure the device remains connected over Wi-Fi:
-     ```bash
-     adb devices
-     ```
+1. Connect your Oculus Quest to your computer using a USB cable.
+2. For Wi-Fi mode, ensure the Quest and your computer are on the same Wi-Fi network.
+3. In the terminal, run:
+   ```bash
+   adb devices
+   ```
+   Accept any permissions on the Oculus Quest.
 
 ---
 
 ### **Running Screen Cast**
 
-1. **Start the ADB Port Forwarding**
+1. **Start Screen Cast**
    ```bash
-   adb reverse tcp:8090 tcp:8090
+   ./screen-cast.sh
    ```
+   Choose tethered (USB) or Wi-Fi when prompted. The script reverses port `8090` and launches the server. In Wi-Fi mode, disconnect the USB cable when asked.
 
-2. **Start the Screen Cast Server**
-   ```bash
-   ./screen-cast
-   ```
-
-3. **Open the Oculus Quest Browser**
+2. **Open the Oculus Quest Browser**
    - Navigate to: `http://localhost:8090`
 
 ---
