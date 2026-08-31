@@ -16,11 +16,36 @@
           align-items: center;
       }
       canvas {
-          width: 1920px;
-          height: 1080px;
+          width: min(1920px, 100vw);
+          height: auto;
+          max-height: 100vh;
+          aspect-ratio: 16 / 9;
+          object-fit: contain;
           background-color: black;
           display: block;
           position: relative;
+      }
+
+      @media (max-width: 768px) {
+          body, html {
+              width: 100%;
+              height: 100%;
+          }
+
+          canvas {
+              width: 100vw;
+              height: auto;
+              max-width: 100vw;
+              max-height: 100vh;
+              object-fit: contain;
+          }
+      }
+
+      @media (min-width: 769px) {
+          canvas {
+              max-width: 100vw;
+              max-height: 100vh;
+          }
       }
       #startButton {
           position: absolute;
