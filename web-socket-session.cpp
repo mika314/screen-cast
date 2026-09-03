@@ -12,6 +12,8 @@
 #include <sys/ipc.h>
 #include <sys/shm.h>
 
+int gopSize = defaultGopSize;
+
 WebSocketSession::WebSocketSession(tcp::socket socket) : ws(std::move(socket))
 {
   initEncoder();
@@ -95,9 +97,9 @@ auto WebSocketSession::initEncoder() -> void
   codecContext->bit_rate = 0;
   codecContext->width = width;
   codecContext->height = height;
-  codecContext->time_base = {1, 60};
-  codecContext->framerate = {60, 1};
-  codecContext->gop_size = 2000;
+  codecContext->time_base = {1, videoFps};
+  codecContext->framerate = {videoFps, 1};
+  codecContext->gop_size = gopSize;
   codecContext->max_b_frames = 0;
   codecContext->pix_fmt = AV_PIX_FMT_YUV420P;
 
@@ -228,7 +230,7 @@ auto WebSocketSession::videoThreadFunc() -> void
 
   unsigned char *pixels = (uint8_t *)std::aligned_alloc(32, width * height * 3); // Aligned to 32 bytes
 
-  auto target = std::chrono::steady_clock::now() + std::chrono::milliseconds(1000 / 60);
+  auto target = std::chrono::steady_clock::now() + std::chrono::milliseconds(1000 / videoFps);
   while (isRunning)
   {
     const auto t1 = std::chrono::steady_clock::now();
@@ -322,12 +324,12 @@ auto WebSocketSession::videoThreadFunc() -> void
           std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(t3 - t2),
           "encode",
           std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(t4 - t3));
-      target = t4 + std::chrono::milliseconds(1000 / 60);
+      target = t4 + std::chrono::milliseconds(1000 / videoFps);
     }
     else
     {
       std::this_thread::sleep_for(target - t4);
-      target += std::chrono::milliseconds(1000 / 60);
+      target += std::chrono::milliseconds(1000 / videoFps);
     }
   }
 

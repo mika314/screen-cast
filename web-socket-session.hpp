@@ -20,6 +20,11 @@ using tcp = boost::asio::ip::tcp;
 namespace http = boost::beast::http;
 namespace websocket = boost::beast::websocket;
 
+// FFmpeg gop_size (frames between keyframes). Default matches prior hardcoded value.
+inline constexpr int defaultGopSize = 2000;
+inline constexpr int videoFps = 60;
+extern int gopSize;
+
 class WebSocketSession : public std::enable_shared_from_this<WebSocketSession>
 {
 public:
